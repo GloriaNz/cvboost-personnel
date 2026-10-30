@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}CVBoost – Optimisez votre CV avec l'IA{% endblock %}
+
+{% block content %}
+
+<!-- HERO SECTION -->
+<section class="hero" id="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-particles" id="particles"></div>
+
+  <div class="hero-inner">
+    <div class="hero-text reveal">
+      <span class="hero-badge">
+        <span class="badge-dot"></span>
+        IA intégrée · Analyse instantanée
+      </span>
+
+      <h1 class="hero-title">
+        Optimisez votre<br>
+        <span class="hero-highlight" id="typedText"></span>
+      </h1>
+
+      <p class="hero-sub">
+        Soumettez votre CV en toute sécurité, analysez votre profil et découvrez les meilleures opportunités d'emploi adaptées à vos compétences réelles.
+      </p>
+
+      <div class="hero-cta">
+        {% if current_user.is_authenticated %}
+          <a href="{{ url_for('main.upload') }}" class="btn btn-primary btn-ripple btn-lg" id="hero-upload-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Uploader mon CV
+          </a>
+          <a href="{{ url_for('main.history') }}" class="btn btn-outline-blue btn-ripple btn-lg">Voir mon historique</a>
+        {% else %}
+          <a href="{{ url_for('main.register') }}" class="btn btn-primary btn-ripple btn-lg" id="hero-cta-btn">
+            Démarrer gratuitement
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </a>
+          <a href="{{ url_for('main.login') }}" class="btn btn-ghost btn-ripple btn-lg">Se connecter</a>
+        {% endif %}
+      </div>
+
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <span class="stat-val" data-target="500">0</span><span class="stat-suffix">+</span>
+          <span class="stat-lbl">CV analysés</span>
+        </div>
+        <div class="stat-sep"></div>
+        <div class="hero-stat">
+          <span class="stat-val" data-target="98">0</span><span class="stat-suffix">%</span>
+          <span class="stat-lbl">Satisfaction</span>
+        </div>
+        <div class="stat-sep"></div>
+        <div class="hero-stat">
+          <span class="stat-val" data-target="2">0</span><span class="stat-suffix">min</span>
+          <span class="stat-lbl">Analyse rapide</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating CV mock -->
+    <div class="hero-visual reveal-right">
+      <div class="cv-mock">
+        <div class="cv-mock-header">
+          <div class="cv-mock-avatar">GN</div>
+          <div class="cv-mock-info">
+            <div class="cv-mock-name">Gloria Nziengi</div>
+            <div class="cv-mock-role">Développeuse IA</div>
+          </div>
+          <div class="cv-mock-score">
+            <svg viewBox="0 0 36 36" class="mini-ring">
+              <circle cx="18" cy="18" r="15" fill="none" stroke="#e5e7eb" stroke-width="3"/>
+              <circle cx="18" cy="18" r="15" fill="none" stroke="url(#rg)" stroke-width="3"
+                      stroke-dasharray="84 94" stroke-linecap="round" transform="rotate(-90 18 18)"/>
+              <defs>
+                <linearGradient id="rg"><stop offset="0%" stop-color="#2563eb"/><stop offset="100%" stop-color="#7c3aed"/></linearGradient>
+              </defs>
+            </svg>
+            <span>89%</span>
+          </div>
+        </div>
+        <div class="cv-mock-bars">
+          <div class="cv-bar-row">
+            <span>Python</span>
+            <div class="cv-bar"><div class="cv-bar-fill" style="--w:92%"></div></div>
+            <span class="cv-pct">92%</span>
+          </div>
+          <div class="cv-bar-row">
+            <span>React</span>
+            <div class="cv-bar"><div class="cv-bar-fill" style="--w:80%"></div></div>
+            <span class="cv-pct">80%</span>
+          </div>
+          <div class="cv-bar-row">
+            <span>SQL</span>
+            <div class="cv-bar"><div class="cv-bar-fill" style="--w:75%"></div></div>
+            <span class="cv-pct">75%</span>
+          </div>
+        </div>
+        <div class="cv-mock-tags">
+          <span class="cv-tag cv-tag-green">✓ Profil optimisé</span>
+          <span class="cv-tag cv-tag-blue">12 offres matchées</span>
+        </div>
+        <div class="cv-mock-notification">
+          <div class="notif-icon">🎯</div>
+          <div class="notif-text">
+            <strong>Nouvelle correspondance !</strong>
+            <span>Data Engineer · Kinshasa · 1000€</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="how-section" id="how">
+  <div class="section-wrap">
+    <div class="section-header reveal">
+      <span class="section-tag">Comment ça marche</span>
+      <h2 class="section-title">Simple, rapide et efficace</h2>
+      <p class="section-sub">Trois étapes pour transformer votre recherche d'emploi</p>
+    </div>
+
+    <div class="steps-grid">
+      <div class="step-card reveal" style="--d:.1s" id="step-upload">
+        <div class="step-num">01</div>
+        <div class="step-icon-wrap">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </div>
+        <h3>Déposez votre CV</h3>
+        <p>Glissez-déposez votre CV en PDF ou DOCX. Sécurisé et confidentiel.</p>
+        <div class="step-line"></div>
+      </div>
+
+      <div class="step-card reveal" style="--d:.2s" id="step-analyze">
+        <div class="step-num">02</div>
+        <div class="step-icon-wrap">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <h3>Analyse IA</h3>
+        <p>Notre intelligence artificielle détecte vos compétences et score votre profil.</p>
+        <div class="step-line"></div>
+      </div>
+
+      <div class="step-card reveal" style="--d:.3s" id="step-match">
+        <div class="step-num">03</div>
+        <div class="step-icon-wrap">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </div>
+        <h3>Matchez les offres</h3>
+        <p>Recevez une liste personnalisée d'offres d'emploi qui correspondent à votre profil.</p>
+        <div class="step-line"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA BANNER -->
+{% if not current_user.is_authenticated %}
+<section class="cta-banner">
+  <div class="cta-inner reveal">
+    <h2>Prêt à booster votre carrière ?</h2>
+    <p>Rejoignez des centaines de professionnels qui ont amélioré leur CV grâce à CVBoost.</p>
+    <a href="{{ url_for('main.register') }}" class="btn btn-white btn-ripple btn-lg" id="cta-btn">
+      Créer mon compte gratuitement
+    </a>
+  </div>
+</section>
+{% endif %}
+
+{% endblock %}

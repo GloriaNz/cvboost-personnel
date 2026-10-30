@@ -1,0 +1,6 @@
+-r requirements.txt
+torch>=2.2,<3
+transformers>=4.46,<5
+datasets>=3,<4
+peft>=0.14,<1
+sacrebleu>=2.5,<3

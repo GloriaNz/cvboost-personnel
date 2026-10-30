@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}Analyse du CV – CVBoost{% endblock %}
+{% block content %}
+
+<div class="page-section">
+  <div class="page-hd">
+    <h1>Assistant DRH</h1>
+    <p>Analyse de compétences à titre indicatif — la décision de recrutement appartient toujours à un humain.</p>
+  </div>
+
+  <div class="card card-sm" style="margin-bottom:24px;">
+    <h2 style="font-size:1.1rem;margin-bottom:8px;">Analyser {{ cv.filename_original }}</h2>
+    <p style="margin-bottom:16px;">Collez l’offre d’emploi pour obtenir un résumé, une compatibilité indicative et une première question d’entretien.</p>
+    <form method="POST" action="{{ url_for('main.analyze_cv', cv_id=cv.id) }}">
+      {{ match_form.hidden_tag() }}
+      <div class="form-group">
+        {{ match_form.job_description.label(class="form-label") }}
+        {{ match_form.job_description(
+            class="form-control",
+            rows="8",
+            maxlength="12000",
+            placeholder="Collez ici la description du poste, les missions et les compétences recherchées…"
+        ) }}
+        {% for error in match_form.job_description.errors %}
+          <p class="form-error">{{ error }}</p>
+        {% endfor %}
+      </div>
+      <button type="submit" class="btn btn-primary btn-ripple">Analyser mon profil</button>
+    </form>
+    <p class="result-ph" style="margin-top:14px;">
+      Le texte du CV et de l’offre sera envoyé à Groq pour analyse. Évitez d’inclure des informations sensibles non nécessaires.
+    </p>
+  </div>
+
+  {% if analysis %}
+    <div class="result-hero">
+      <div class="score-ring" role="img" aria-label="Compatibilité indicative : {{ analysis.match_score }} pour cent">
+        <div class="score-text">
+          <span class="score-number">{{ analysis.match_score }}%</span>
+          <span class="score-lbl">Compatibilité</span>
+        </div>
+      </div>
+      <div>
+        <h2>Résumé du profil</h2>
+        <p>{{ analysis.summary }}</p>
+        <span class="badge-inv">Indicateur d’aide, pas une décision automatique</span>
+      </div>
+    </div>
+
+    <div class="result-grid">
+      <section class="result-card" aria-labelledby="strengths-title">
+        <div class="rc-head"><h3 id="strengths-title">Points forts pertinents</h3></div>
+        {% if analysis.strengths %}
+          <ul>{% for item in analysis.strengths %}<li>{{ item }}</li>{% endfor %}</ul>
+        {% else %}
+          <p>Aucun point fort détaillé n’a été fourni.</p>
+        {% endif %}
+      </section>
+      <section class="result-card" aria-labelledby="gaps-title">
+        <div class="rc-head"><h3 id="gaps-title">Compétences à vérifier ou développer</h3></div>
+        {% if analysis.gaps %}
+          <ul>{% for item in analysis.gaps %}<li>{{ item }}</li>{% endfor %}</ul>
+        {% else %}
+          <p>Aucun écart particulier n’a été signalé par l’assistant.</p>
+        {% endif %}
+      </section>
+    </div>
+
+    <section class="card card-sm" style="margin:24px 0;">
+      <h2 style="font-size:1.1rem;margin-bottom:16px;">Simulation d’entretien</h2>
+      {% for turn in analysis.interview_history %}
+        <div class="interview-turn" style="margin-bottom:18px;">
+          <p><strong>Question {{ loop.index }} :</strong> {{ turn.question }}</p>
+          <button
+            type="button"
+            class="btn btn-ghost audio-play-button"
+            data-question="{{ turn.question }}"
+          >Écouter la question</button>
+          {% if turn.answer %}
+            <p><strong>Votre réponse :</strong> {{ turn.answer }}</p>
+          {% endif %}
+        </div>
+      {% endfor %}
+      {% if analysis.interview_history and not analysis.interview_history[-1].answer %}
+        <form method="POST" action="{{ url_for('main.answer_interview', analysis_id=analysis.id) }}">
+          {{ answer_form.hidden_tag() }}
+          <div class="form-group">
+            {{ answer_form.answer.label(class="form-label") }}
+            {{ answer_form.answer(class="form-control", rows="4", maxlength="4000", placeholder="Écrivez votre réponse…") }}
+            {% for error in answer_form.answer.errors %}
+              <p class="form-error">{{ error }}</p>
+            {% endfor %}
+          </div>
+          <div
+            class="audio-controls"
+            data-transcribe-url="{{ url_for('main.transcribe_interview_audio', analysis_id=analysis.id) }}"
+          >
+            <p class="result-ph">
+              Vous pouvez dicter votre réponse. L’enregistrement sera envoyé à Groq
+              pour transcription, ne sera pas conservé par CVBoost, et ne sera ajouté
+              à la simulation qu’après vérification et envoi du texte. La lecture
+              audio des questions utilise la synthèse vocale de votre navigateur.
+            </p>
+            <div class="audio-toolbar">
+              <button type="button" class="btn btn-ghost" data-audio-record>Enregistrer ma réponse</button>
+              <button type="button" class="btn btn-ghost" data-audio-stop disabled>Arrêter</button>
+              <button type="button" class="btn btn-primary" data-audio-transcribe disabled>Transcrire</button>
+            </div>
+            <p class="audio-status" data-audio-status role="status" aria-live="polite"></p>
+          </div>
+          <button type="submit" class="btn btn-primary btn-ripple">Envoyer ma réponse</button>
+        </form>
+      {% elif analysis.interview_history and analysis.interview_history|length >= 10 %}
+        <p>Limite de 10 questions atteinte. Relancez l’analyse pour recommencer la simulation.</p>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  <div class="card card-sm" style="margin-bottom:24px;">
+    <h2 style="font-size:1rem;margin-bottom:12px;">Informations du document</h2>
+    <div class="file-meta">
+      <div class="fm-item"><span class="fm-label">Nom</span><span class="fm-value">{{ cv.filename_original }}</span></div>
+      <div class="fm-item"><span class="fm-label">Date d’envoi</span><span class="fm-value">{{ cv.date_upload.strftime('%d/%m/%Y à %H:%M') }}</span></div>
+      <div class="fm-item"><span class="fm-label">Statut</span><span class="fm-value">{{ cv.statut }}</span></div>
+    </div>
+  </div>
+
+  <section class="card card-sm job-offers-section" aria-labelledby="job-offers-title">
+    <h2 id="job-offers-title" style="font-size:1.1rem;margin-bottom:8px;">Offres collectées pour votre profil</h2>
+    <p class="result-ph">
+      Les offres sont classées selon les compétences reconnues dans le CV et dans leur texte.
+      Ce rapprochement lexical n’est ni exhaustif ni une décision de recrutement.
+    </p>
+    {% if job_offers_error %}
+      <p class="form-error" role="alert">{{ job_offers_error }}</p>
+    {% elif job_offers %}
+      <div class="job-offers-list">
+        {% for job in job_offers %}
+          <article class="job-offer-card">
+            <div>
+              <h3>{{ job.title }}</h3>
+              <p>{{ job.company or 'Entreprise non précisée' }} · {{ job.location or 'Lieu non précisé' }}</p>
+              {% if job.published_at %}<p class="result-ph">Publication : {{ job.published_at }}</p>{% endif %}
+              {% if job.salary %}<p class="result-ph">Rémunération : {{ job.salary }}</p>{% endif %}
+              {% if job.matching_skills %}
+                <p class="job-matching-skills">
+                  Compétences communes : {{ job.matching_skills | join(', ') }}
+                </p>
+              {% else %}
+                <p class="result-ph">Aucun mot-clé de compétence commun n’a été reconnu.</p>
+              {% endif %}
+              {% if job.description %}
+                <p class="job-description">{{ job.description[:500] }}{% if job.description|length > 500 %}…{% endif %}</p>
+              {% endif %}
+            </div>
+            <div class="job-offer-actions">
+              {% if job.source_url %}
+                <a href="{{ job.source_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-ghost">Voir l’offre</a>
+              {% endif %}
+              {% if job.analysis_text %}
+                <form method="POST" action="{{ url_for('main.analyze_cv', cv_id=cv.id) }}">
+                  {{ match_form.hidden_tag() }}
+                  <input type="hidden" name="job_description" value="{{ job.analysis_text }}">
+                  <button type="submit" class="btn btn-primary">Analyser cette offre</button>
+                </form>
+              {% else %}
+                <span class="result-ph">{{ job.analysis_error or 'Description trop courte pour lancer une analyse fiable.' }}</span>
+              {% endif %}
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p>Aucune offre chargée. Collectez puis nettoyez les annonces pour les afficher ici.</p>
+      <code>python -m data_pipeline.scraper_jobs --limit 20 --details 10</code>
+      <code>python -m data_pipeline.pandas_cleaning --input data_pipeline\jobs_mediacongo.csv --output data_pipeline\jobs_clean.csv</code>
+    {% endif %}
+  </section>
+
+  <div class="result-actions">
+    <a href="{{ url_for('main.upload') }}" class="btn btn-primary btn-ripple">Envoyer un autre CV</a>
+    <a href="{{ url_for('main.history') }}" class="btn btn-ghost btn-ripple">Voir mon historique</a>
+  </div>
+</div>
+{% endblock %}

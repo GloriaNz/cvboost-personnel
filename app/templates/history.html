@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Mon Historique – CVBoost{% endblock %}
+{% block content %}
+
+<div class="page-section">
+  <div class="page-hd page-hd-row">
+    <div>
+      <h1>📋 Mon Historique de Documents</h1>
+      <p>Retrouvez tous vos CV envoyés et leur statut d'analyse.</p>
+    </div>
+    <a href="{{ url_for('main.upload') }}" class="btn btn-primary btn-ripple" id="history-upload-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Nouveau CV
+    </a>
+  </div>
+
+  {% if cvs %}
+    <div class="history-list">
+      {% for cv in cvs %}
+        <div class="hist-card" id="cv-card-{{ cv.id }}">
+
+          <div class="hist-file-icon {{ 'pdf' if cv.filename_original.endswith('.pdf') else 'doc' }}">
+            {% if cv.filename_original.endswith('.pdf') %}
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+            {% else %}
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+            {% endif %}
+          </div>
+
+          <div class="hist-body">
+            <p class="hist-name" title="{{ cv.filename_original }}">{{ cv.filename_original }}</p>
+            <p class="hist-date">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              Envoyé le {{ cv.date_upload.strftime('%d/%m/%Y') }} à {{ cv.date_upload.strftime('%H:%M') }}
+            </p>
+          </div>
+
+          <div class="hist-meta">
+            {% if cv.statut == 'Terminé' %}
+              <span class="badge badge-done">
+                <span class="badge-dot-anim"></span>Terminé
+              </span>
+            {% elif cv.statut == 'En attente' %}
+              <span class="badge badge-waiting">
+                <span class="badge-dot-anim"></span>En attente d'analyse
+              </span>
+            {% else %}
+              <span class="badge badge-error">
+                <span class="badge-dot-anim"></span>{{ cv.statut }}
+              </span>
+            {% endif %}
+
+            <a href="{{ url_for('main.result', cv_id=cv.id) }}"
+               class="btn btn-outline-blue btn-sm btn-ripple"
+               id="view-result-{{ cv.id }}">
+              Visualiser
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </a>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+  {% else %}
+    <div class="empty-state">
+      <div class="empty-illo">📂</div>
+      <h2>Aucun CV envoyé pour l'instant</h2>
+      <p>Commencez par envoyer votre premier CV pour que notre IA l'analyse.</p>
+      <a href="{{ url_for('main.upload') }}" class="btn btn-primary btn-lg btn-ripple" id="empty-upload-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Envoyer mon premier CV
+      </a>
+    </div>
+  {% endif %}
+</div>
+
+{% endblock %}

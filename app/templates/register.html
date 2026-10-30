@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Inscription – CVBoost{% endblock %}
+{% block content %}
+
+<section class="auth-section">
+  <div class="auth-container">
+    <div class="auth-card">
+      <div class="auth-icon-wrap">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </div>
+      <h1 class="auth-title">Créer un compte</h1>
+      <p class="auth-subtitle">Rejoignez CVBoost et propulsez votre carrière</p>
+
+      <form method="POST" action="{{ url_for('main.register') }}" novalidate id="register-form">
+        {{ form.hidden_tag() }}
+
+        <div class="form-row">
+          <div class="form-group">
+            {{ form.nom.label(class="form-label") }}
+            {{ form.nom(
+                class="form-control" + (" is-invalid" if form.nom.errors else ""),
+                placeholder="Nziengi",
+                id="register-nom",
+                autocomplete="family-name"
+            ) }}
+            {% for e in form.nom.errors %}
+              <p class="form-error">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                {{ e }}
+              </p>
+            {% endfor %}
+          </div>
+          <div class="form-group">
+            {{ form.prenom.label(class="form-label") }}
+            {{ form.prenom(
+                class="form-control" + (" is-invalid" if form.prenom.errors else ""),
+                placeholder="Gloria",
+                id="register-prenom",
+                autocomplete="given-name"
+            ) }}
+            {% for e in form.prenom.errors %}
+              <p class="form-error">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                {{ e }}
+              </p>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="form-group">
+          {{ form.email.label(class="form-label") }}
+          {{ form.email(
+              class="form-control" + (" is-invalid" if form.email.errors else ""),
+              placeholder="gloria.nziengi@email.com",
+              id="register-email",
+              autocomplete="email"
+          ) }}
+          {% for e in form.email.errors %}
+            <p class="form-error">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              {{ e }}
+            </p>
+          {% endfor %}
+        </div>
+
+        <div class="form-group">
+          {{ form.password.label(class="form-label") }}
+          <div class="input-wrap">
+            {{ form.password(
+                class="form-control" + (" is-invalid" if form.password.errors else ""),
+                placeholder="Min. 6 caractères",
+                id="register-password",
+                autocomplete="new-password"
+            ) }}
+            <button type="button" class="input-action pwd-toggle" data-target="register-password" aria-label="Afficher">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+          <!-- Strength meter -->
+          <div class="strength-meter">
+            <div class="strength-bars">
+              <div class="strength-bar"></div>
+              <div class="strength-bar"></div>
+              <div class="strength-bar"></div>
+            </div>
+            <span class="strength-label"></span>
+          </div>
+          {% for e in form.password.errors %}
+            <p class="form-error">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              {{ e }}
+            </p>
+          {% endfor %}
+        </div>
+
+        <div class="form-group">
+          {{ form.confirm_password.label(class="form-label") }}
+          <div class="input-wrap">
+            {{ form.confirm_password(
+                class="form-control" + (" is-invalid" if form.confirm_password.errors else ""),
+                placeholder="Répétez le mot de passe",
+                id="register-confirm",
+                autocomplete="new-password"
+            ) }}
+            <button type="button" class="input-action pwd-toggle" data-target="register-confirm" aria-label="Afficher">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+          {% for e in form.confirm_password.errors %}
+            <p class="form-error">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              {{ e }}
+            </p>
+          {% endfor %}
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block btn-lg btn-ripple" id="register-submit">
+          Créer mon compte
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </button>
+      </form>
+
+      <p class="auth-footer">
+        Déjà un compte ?
+        <a href="{{ url_for('main.login') }}" id="link-to-login">Se connecter</a>
+      </p>
+    </div>
+  </div>
+</section>
+
+{% endblock %}

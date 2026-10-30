@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Envoyer mon CV – CVBoost{% endblock %}
+{% block content %}
+
+<div class="page-section">
+  <div class="page-hd page-hd-row">
+    <div>
+      <h1>📤 Uploader un CV</h1>
+      <p>Déposez votre CV, puis comparez votre profil à une offre d’emploi.</p>
+    </div>
+    <a href="{{ url_for('main.history') }}" class="btn btn-ghost btn-sm">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="12 8 12 12 14 14"/><path d="M3.05 11a9 9 0 1 0 .5-4"/><polyline points="3 3 3 7 7 7"/></svg>
+      Mon historique
+    </a>
+  </div>
+
+  <div class="upload-card">
+    <div class="card">
+      <form method="POST" action="{{ url_for('main.upload') }}" enctype="multipart/form-data" novalidate id="upload-form">
+        {{ form.hidden_tag() }}
+
+        <!-- Drop Zone -->
+        <div class="drop-zone" id="dropZone">
+          <input type="file" name="cv" id="cv-file-input" accept=".pdf,.docx" class="drop-zone-input" />
+
+          <!-- Default content -->
+          <div id="dzContent">
+            <div class="dz-icon">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </div>
+            <h3>Glissez votre CV ici</h3>
+            <p>ou <span class="drop-zone-link">cliquez pour parcourir</span></p>
+            <p class="dz-hint">PDF ou DOCX — max. 5 Mo</p>
+          </div>
+
+          <!-- Preview -->
+          <div class="dz-preview" id="dzPreview" style="display:none">
+            <div class="dz-preview-icon">📄</div>
+            <div class="dz-preview-info">
+              <p class="dz-preview-name" id="dzName"></p>
+              <p class="dz-preview-size" id="dzSize"></p>
+            </div>
+            <button type="button" class="dz-remove" id="dzRemove" aria-label="Supprimer">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
+
+        {% for e in form.cv.errors %}
+          <p class="form-error" style="margin-bottom:14px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            {{ e }}
+          </p>
+        {% endfor %}
+
+        <!-- Tips -->
+        <div class="upload-tips">
+          <div class="upload-tip">
+            <svg class="tip-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Stockage sécurisé avec identifiant unique (UUID)
+          </div>
+          <div class="upload-tip">
+            <svg class="tip-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Résumé IA, score indicatif et simulation d’entretien
+          </div>
+          <div class="upload-tip">
+            <svg class="tip-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="12 8 12 12 14 14"/><path d="M3.05 11a9 9 0 1 0 .5-4"/></svg>
+            Retrouvez vos CV dans l'historique à tout moment
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block btn-lg btn-ripple" id="upload-submit" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Analyser mon CV
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

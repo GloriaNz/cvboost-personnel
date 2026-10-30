@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Connexion – CVBoost{% endblock %}
+{% block content %}
+
+<section class="auth-section">
+  <div class="auth-container">
+    <div class="auth-card">
+      <div class="auth-icon-wrap">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </div>
+      <h1 class="auth-title">Bon retour !</h1>
+      <p class="auth-subtitle">Connectez-vous à votre espace CVBoost</p>
+
+      <form method="POST" action="{{ url_for('main.login') }}" novalidate id="login-form">
+        {{ form.hidden_tag() }}
+
+        <div class="form-group">
+          {{ form.email.label(class="form-label") }}
+          {{ form.email(
+              class="form-control" + (" is-invalid" if form.email.errors else ""),
+              placeholder="gloria.nziengi@email.com",
+              id="login-email",
+              autocomplete="email"
+          ) }}
+          {% for e in form.email.errors %}
+            <p class="form-error">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              {{ e }}
+            </p>
+          {% endfor %}
+        </div>
+
+        <div class="form-group">
+          {{ form.password.label(class="form-label") }}
+          <div class="input-wrap">
+            {{ form.password(
+                class="form-control" + (" is-invalid" if form.password.errors else ""),
+                placeholder="Votre mot de passe",
+                id="login-password",
+                autocomplete="current-password"
+            ) }}
+            <button type="button" class="input-action pwd-toggle" data-target="login-password" aria-label="Afficher">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+          {% for e in form.password.errors %}
+            <p class="form-error">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              {{ e }}
+            </p>
+          {% endfor %}
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block btn-lg btn-ripple" id="login-submit">
+          Se connecter
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </button>
+      </form>
+
+      <div class="auth-divider">ou</div>
+
+      <p class="auth-footer">
+        Pas encore de compte ?
+        <a href="{{ url_for('main.register') }}" id="link-to-register">S'inscrire gratuitement</a>
+      </p>
+    </div>
+  </div>
+</section>
+
+{% endblock %}

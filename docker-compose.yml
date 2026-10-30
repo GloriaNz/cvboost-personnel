@@ -1,0 +1,22 @@
+services:
+  web:
+    build:
+      context: .
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: sqlite:////app/instance/cvboost.db
+      UPLOAD_FOLDER: /app/uploads
+      UPLOAD_AUDIT_LOG: /app/instance/upload_audit.jsonl
+      JOB_OFFERS_FILE: /app/data_pipeline/jobs_clean.csv
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - cvboost_instance:/app/instance
+      - cvboost_uploads:/app/uploads
+    restart: unless-stopped
+
+volumes:
+  cvboost_instance:
+  cvboost_uploads:

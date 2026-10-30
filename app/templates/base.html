@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="CVBoost – Optimisez votre CV grâce à l'intelligence artificielle." />
+  <title>{% block title %}CVBoost{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body>
+
+  <!-- NAVBAR -->
+  <nav class="navbar" id="navbar">
+    <div class="nav-container">
+      <a href="{{ url_for('main.index') }}" class="nav-logo" id="nav-logo">
+        <span class="logo-cv">CV</span><span class="logo-boost">Boost</span>
+        <span class="logo-dot"></span>
+      </a>
+
+      <ul class="nav-links" id="navLinks">
+        {% if current_user.is_authenticated %}
+          <li>
+            <a href="{{ url_for('main.upload') }}"
+               class="nav-link {% if request.endpoint == 'main.upload' %}active{% endif %}"
+               id="nav-upload">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Uploader
+            </a>
+          </li>
+          <li>
+            <a href="{{ url_for('main.history') }}"
+               class="nav-link {% if request.endpoint == 'main.history' %}active{% endif %}"
+               id="nav-history">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="12 8 12 12 14 14"/><path d="M3.05 11a9 9 0 1 0 .5-4"/><polyline points="3 3 3 7 7 7"/></svg>
+              Mon Historique
+            </a>
+          </li>
+          <li class="nav-user-item">
+            <div class="nav-avatar" aria-hidden="true">
+              {{ current_user.prenom[0] | upper }}{{ current_user.nom[0] | upper }}
+            </div>
+            <span class="nav-username">{{ current_user.prenom }} {{ current_user.nom[0] }}.</span>
+          </li>
+          <li>
+            <form method="POST" action="{{ url_for('main.logout') }}">
+              {{ logout_form.hidden_tag() }}
+              <button type="submit" class="nav-btn-outline" id="nav-logout">Déconnexion</button>
+            </form>
+          </li>
+        {% else %}
+          <li>
+            <a href="{{ url_for('main.login') }}"
+               class="nav-link {% if request.endpoint == 'main.login' %}active{% endif %}"
+               id="nav-login-link">Connexion</a>
+          </li>
+          <li>
+            <a href="{{ url_for('main.register') }}" class="nav-btn-primary" id="nav-register-link">Inscription</a>
+          </li>
+        {% endif %}
+      </ul>
+
+      <button class="nav-toggle" id="navToggle" aria-label="Menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- FLASH MESSAGES -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="flash-container" id="flashContainer">
+        {% for category, message in messages %}
+          <div class="flash flash-{{ category }}" role="alert">
+            <span class="flash-icon">
+              {% if category == 'success' %}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              {% elif category == 'danger' %}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              {% elif category == 'warning' %}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              {% else %}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              {% endif %}
+            </span>
+            <span>{{ message }}</span>
+            <button class="flash-close" onclick="this.parentElement.classList.add('flash-hiding')" aria-label="Fermer">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="footer-container">
+      <div class="footer-brand">
+        <span class="logo-cv">CV</span><span class="logo-boost">Boost</span>
+      </div>
+      <p class="footer-tagline">Propulsez votre carrière grâce à l'intelligence artificielle</p>
+      <p class="footer-copy">&copy; 2026 CVBoost – Tous droits réservés</p>
+    </div>
+  </footer>
+
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
