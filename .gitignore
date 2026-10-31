@@ -16,3 +16,4 @@ ai_engine/__pycache__/
 .pytest_cache/
 .coverage
 htmlcov/
+api_service/temp_audio/*.wav
