@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Simulation d’entretien – CVBoost{% endblock %}
+{% block content %}
+
+<section class="page-section">
+  <div class="page-hd">
+    <span class="section-tag">Préparation à l’embauche</span>
+    <h1>Entraînez-vous à l’entretien</h1>
+    <p>Choisissez un CV et une offre analysés pour reprendre votre simulation personnalisée.</p>
+  </div>
+
+  {% if cvs %}
+    <div class="practice-list">
+      {% for cv in cvs %}
+        {% set analysis = analyses_by_cv.get(cv.id) %}
+        <article class="practice-card">
+          <div class="practice-file-icon" aria-hidden="true">
+            <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8m-8 4h8"/></svg>
+          </div>
+          <div class="practice-card-content">
+            <h2>{{ cv.filename_original }}</h2>
+            <p class="practice-meta">Ajouté le {{ cv.date_upload.strftime('%d/%m/%Y') }}</p>
+            {% if analysis %}
+              <p class="practice-job">{{ analysis.job_description[:150] }}{% if analysis.job_description|length > 150 %}…{% endif %}</p>
+              <p class="practice-progress">{{ analysis.interview_history|selectattr('answer')|list|length }} / 10 réponses enregistrées</p>
+            {% else %}
+              <p class="practice-job">Aucune offre n’a encore été analysée pour ce CV.</p>
+            {% endif %}
+          </div>
+          {% if analysis %}
+            <a class="btn btn-primary btn-ripple practice-action" href="{{ url_for('main.result', cv_id=cv.id) }}#interview">
+              {% if analysis.interview_history and analysis.interview_history|selectattr('answer')|list|length >= 10 %}
+                Voir la simulation
+              {% else %}
+                Continuer l’entraînement
+              {% endif %}
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14m-7-7 7 7-7 7"/></svg>
+            </a>
+          {% else %}
+            <a class="btn btn-primary btn-ripple practice-action" href="{{ url_for('main.result', cv_id=cv.id) }}">
+              Analyser ce CV
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14m-7-7 7 7-7 7"/></svg>
+            </a>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="practice-empty">
+      <span class="practice-empty-icon" aria-hidden="true">🎙️</span>
+      <h2>Votre première simulation commence ici</h2>
+      <p>Déposez un CV, ajoutez la description du poste visé et lancez l’analyse. Votre première question d’entretien sera ensuite générée.</p>
+      <a href="{{ url_for('main.upload') }}" class="btn btn-primary btn-ripple">
+        Déposer mon CV
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14m-7-7 7 7-7 7"/></svg>
+      </a>
+    </div>
+  {% endif %}
+</section>
+
+{% endblock %}

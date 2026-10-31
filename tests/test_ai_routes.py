@@ -73,6 +73,32 @@ class AIRouteTests(unittest.TestCase):
             db.drop_all()
         self.temp_directory.cleanup()
 
+    def test_interview_landing_lists_cv_and_links_to_analysis(self):
+        response = self.client.get('/interview')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'Simulation entretien', response.data)
+        self.assertIn(b'CV.pdf', response.data)
+        self.assertIn(b'Analyser ce CV', response.data)
+        self.assertIn(f'/result/{self.cv_id}'.encode(), response.data)
+
+    def test_interview_landing_links_to_existing_simulation(self):
+        self.create_pending_analysis()
+
+        response = self.client.get('/interview')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'Continuer l\xe2\x80\x99entra\xc3\xaenement', response.data)
+        self.assertIn(f'/result/{self.cv_id}#interview'.encode(), response.data)
+
+    def test_interview_landing_requires_authentication(self):
+        client = self.app.test_client()
+
+        response = client.get('/interview')
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/login', response.headers['Location'])
+
     @staticmethod
     def analysis_response():
         return {
@@ -93,6 +119,7 @@ class AIRouteTests(unittest.TestCase):
             )
 
         self.assertEqual(response.status_code, 302)
+        self.assertIn(f'/result/{self.cv_id}#interview', response.headers['Location'])
         extraction.assert_called_once()
         analysis_service.assert_called_once_with(
             'CV text',
@@ -112,6 +139,10 @@ class AIRouteTests(unittest.TestCase):
         self.assertIn(b'85%', page.data)
         self.assertIn('Parlez-moi de votre dernier projet data.'.encode(), page.data)
         self.assertIn(b'Gloria', page.data)
+        self.assertIn('Simulation d’entretien'.encode(), page.data)
+        self.assertIn(b'0 / 10 r\xc3\xa9ponses', page.data)
+        self.assertIn(b'Envoyer ma r\xc3\xa9ponse', page.data)
+        self.assertIn(b'data-answer-length', page.data)
 
         with patch('app.routes.extract_cv_text', return_value='CV text'), patch(
             'app.routes.generate_interview_question',
@@ -122,6 +153,7 @@ class AIRouteTests(unittest.TestCase):
                 data={'answer': 'Je vérifie les valeurs manquantes et les doublons.'},
             )
         self.assertEqual(answer_response.status_code, 302)
+        self.assertIn('#interview', answer_response.headers['Location'])
         with self.app.app_context():
             analysis = db.session.get(AIAnalysis, analysis_id)
             history = analysis.interview_history

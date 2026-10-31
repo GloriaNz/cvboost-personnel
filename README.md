@@ -142,7 +142,19 @@ Fonctionnalités :
 
 ---
 
-## 6️⃣ Déconnexion
+## 6️⃣ Simulation d’entretien
+
+Route : `/interview` (accessible depuis le menu après connexion)
+
+Choisissez un CV déjà téléversé. Pour démarrer une simulation, ouvrez son
+analyse, collez une offre d’emploi d’au moins 30 caractères et lancez
+« Analyser mon profil ». La première question apparaît ensuite dans la section
+« Simulation d’entretien » ; répondez pour obtenir les questions suivantes.
+Les erreurs Groq indiquent si la clé, le quota ou le modèle doit être vérifié.
+
+---
+
+## 7️⃣ Déconnexion
 
 Route : `POST /logout` (formulaire protégé par CSRF)
 
@@ -343,3 +355,48 @@ Le script d'entraînement utilise un modèle causal compatible LoRA avec `q_proj
 et `v_proj`. Si ces noms diffèrent pour le modèle choisi, fournissez
 `--target-modules`. L'évaluation SacreBLEU porte sur le jeu de test isolé ;
 elle complète, mais ne remplace pas, une revue qualitative des sorties.
+
+### 📓 Notebook Fine-Tuning Colab (Sprint 3)
+Le notebook de fine-tuning exécuté sur Google Colab est archivé dans [`ai_engine/sprint3_colab.ipynb`](file:///c:/Users/utilisitateur/OneDrive/Documents/26-01-kd-dev-ia-midi-c-mon-thu-kin-projet-capstone-final-cvb-glorianz/ai_engine/sprint3_colab.ipynb).
+Il détaille :
+- La préparation et le filtrage des paires sans fuite de données (train/validation/test).
+- Le fine-tuning PEFT/LoRA sur le modèle NLLB ciblant les projections d'attention.
+- Les checkpoints de sauvegarde (`/content/nllb-lora-fr-lin-final` ou Google Drive).
+- L'évaluation comparative avec SacreBLEU (score BLEU obtenu : **21.71**, chrF : **51.44** démontrant le gain par rapport au modèle d'origine).
+
+---
+
+# 🚀 Sprint 4 : API Multimodale, Synthèse Vocale & Déploiement Azure
+
+### 1. Orchestrateur FastAPI (`/speak-smart`)
+L'orchestrateur multimodal combine l'analyse textuelle et la synthèse vocale :
+- **Étape 1 : Reformulation LLM** via Groq (`api_service/services/llm_reformulator.py`) générant un pitch percutant et fluide à la 1ère personne (~30s).
+- **Étape 2 : Synthèse vocale TTS** (`api_service/services/tts_engine.py`) produisant un fichier audio `.wav` haute fidélité.
+- **Métriques audio MLOps journalisées** : MOS estimé (~4.15), WER cible (< 5.2%), CER cible (< 2.1%).
+
+Pour démarrer l'API localement :
+```powershell
+uvicorn api_service.main:app --host 0.0.0.0 --port 8001 --reload
+```
+
+Test de l'endpoint :
+```bash
+curl -X POST http://127.0.0.1:8001/speak-smart \
+  -H "Content-Type: application/json" \
+  -d '{"cv_text": "Gloria NZ - Développeuse IA et Full Stack...", "job_target": "Ingénieure IA"}'
+```
+
+### 2. Conteneurisation Multi-Services (Docker & Docker Compose)
+L'application web Flask et l'API FastAPI sont orchestrées via `docker-compose.yml` :
+```powershell
+docker-compose up --build
+```
+- **Application Web (Flask)** : accessible sur `http://localhost:8000`
+- **Orchestrateur Vocal (FastAPI)** : accessible sur `http://localhost:8001`
+- **Volumes persistants** : `cvboost_instance`, `cvboost_uploads`, `cvboost_audio`.
+
+### 3. Pipeline CI/CD GitHub Actions & Déploiement Azure
+Le workflow automatisé se trouve dans `.github/workflows/deploy.yml` :
+1. **Tests automatiques** : Découverte et exécution automatique de la suite complète de tests unitaires (58 tests passés avec succès).
+2. **Build Docker & Push** : Construction automatique de l'image Docker tagged vers Azure Container Registry (ACR).
+3. **Déploiement Continu** : Déploiement direct sans interruption sur Azure App Service for Containers.

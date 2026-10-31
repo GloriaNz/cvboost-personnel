@@ -316,7 +316,20 @@ function showToast(msg, type = 'info') {
   });
 })();
 
-// ── 15. Interview audio ───────────────────────────────────────
+// ── 15. Interview answer character counter ───────────────────
+(function initInterviewAnswerCounter() {
+  const answer = document.getElementById('interview-answer');
+  const counter = document.querySelector('[data-answer-length]');
+  if (!answer || !counter) return;
+
+  const updateCount = () => {
+    counter.textContent = answer.value.length.toLocaleString('fr-FR');
+  };
+  answer.addEventListener('input', updateCount);
+  updateCount();
+})();
+
+// ── 16. Interview audio ───────────────────────────────────────
 (function initInterviewAudio() {
   document.querySelectorAll('.audio-controls').forEach(controls => {
     const form = controls.closest('form');
@@ -344,9 +357,46 @@ function showToast(msg, type = 'info') {
         setStatus('L’enregistrement audio n’est pas pris en charge par ce navigateur.', 'error');
         return;
       }
+    // Mode Temps Réel : Web Speech Recognition (Google Chrome / Edge / Safari)
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let liveRecognition;
+
+    if (SpeechRecognition) {
+      liveRecognition = new SpeechRecognition();
+      liveRecognition.lang = 'fr-FR';
+      liveRecognition.continuous = true;
+      liveRecognition.interimResults = true;
+
+      liveRecognition.onresult = (event) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript + ' ';
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+        if (finalTranscript) {
+          answer.value = (answer.value + ' ' + finalTranscript).trim();
+        }
+        setStatus(interimTranscript ? `🗣️ En direct : "${interimTranscript}"` : 'Enregistrement en direct en cours…');
+      };
+
+      liveRecognition.onerror = (e) => {
+        console.warn('Live SpeechRecognition error:', e.error);
+      };
+    }
+
+    recordButton.addEventListener('click', async () => {
+      audioBlob = undefined;
+      chunks = [];
       recordButton.disabled = true;
-      setStatus('Demande d’accès au microphone…');
+      setStatus('Démarrage du microphone…');
       try {
+        if (liveRecognition) {
+          try { liveRecognition.start(); } catch (_) {}
+        }
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const mimeType = [
           'audio/webm;codecs=opus',
@@ -359,6 +409,9 @@ function showToast(msg, type = 'info') {
           if (event.data.size) chunks.push(event.data);
         });
         recorder.addEventListener('stop', () => {
+          if (liveRecognition) {
+            try { liveRecognition.stop(); } catch (_) {}
+          }
           stream.getTracks().forEach(track => track.stop());
           stream = undefined;
           recording = undefined;
@@ -367,18 +420,17 @@ function showToast(msg, type = 'info') {
           recordButton.disabled = false;
           const withinLimit = audioBlob.size <= 5 * 1024 * 1024;
           transcribeButton.disabled = !audioBlob.size || !withinLimit;
-          setStatus(audioBlob.size > 5 * 1024 * 1024
-            ? 'L’enregistrement dépasse la limite de 5 Mo. Faites une réponse plus courte.'
-            : audioBlob.size
-            ? 'Enregistrement prêt. Transcrivez-le, puis relisez le texte avant de l’envoyer.'
-            : 'Aucun son n’a été enregistré. Réessayez.',
-          !audioBlob.size || !withinLimit ? 'error' : '');
+          setStatus(
+            answer.value.trim() 
+              ? 'Réponse captée en temps réel ! Vous pouvez l’envoyer ou utiliser Transcrire (Groq Whisper) pour peaufiner.'
+              : 'Enregistrement audio terminé. Cliquez sur Transcrire pour convertir avec Groq.'
+          );
         });
         recorder.start();
         recording = setTimeout(() => recorder?.state === 'recording' && recorder.stop(), 60000);
         stopButton.disabled = false;
         transcribeButton.disabled = true;
-        setStatus('Enregistrement en cours… durée maximale : 60 secondes.');
+        setStatus('🎙️ Parlez maintenant, votre voix est retranscrite en direct…');
       } catch (error) {
         if (stream) stream.getTracks().forEach(track => track.stop());
         stream = undefined;
@@ -428,6 +480,18 @@ function showToast(msg, type = 'info') {
 
   let activeButton;
   let activeUtterance;
+
+  function getFrenchVoice() {
+    if (!window.speechSynthesis) return null;
+    const voices = window.speechSynthesis.getVoices() || [];
+    return voices.find(v => v.lang && (v.lang.startsWith('fr') || v.lang === 'fr-FR')) || voices[0] || null;
+  }
+
+  // Pre-load voices for Chrome/Edge
+  if (typeof window !== 'undefined' && window.speechSynthesis) {
+    window.speechSynthesis.onvoiceschanged = () => getFrenchVoice();
+  }
+
   document.querySelectorAll('.audio-play-button').forEach(button => {
     button.addEventListener('click', () => {
       if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) {
@@ -441,12 +505,23 @@ function showToast(msg, type = 'info') {
         activeButton.textContent = 'Écouter la question';
       }
 
-      const utterance = new window.SpeechSynthesisUtterance(button.dataset.question || '');
+      const rawText = button.dataset.question || button.closest('article')?.querySelector('.interview-question-text')?.textContent || '';
+      const textToSpeak = rawText.trim() || 'Bonjour, bienvenue à cet entretien. Pour commencer, parlez-moi de vous et de votre parcours.';
+
+      const utterance = new window.SpeechSynthesisUtterance(textToSpeak);
       utterance.lang = 'fr-FR';
+      utterance.rate = 0.95; // Rythme posé et naturel
+      utterance.pitch = 1.0;
+
+      const frVoice = getFrenchVoice();
+      if (frVoice) {
+        utterance.voice = frVoice;
+      }
+
       activeButton = button;
       activeUtterance = utterance;
       button.disabled = true;
-      button.textContent = 'Lecture en cours…';
+      button.textContent = '🔊 Lecture en cours…';
 
       const finish = () => {
         if (activeUtterance !== utterance) return;
@@ -455,6 +530,7 @@ function showToast(msg, type = 'info') {
         activeButton = undefined;
         activeUtterance = undefined;
       };
+
       utterance.addEventListener('end', finish);
       utterance.addEventListener('error', event => {
         finish();
@@ -463,7 +539,12 @@ function showToast(msg, type = 'info') {
           console.error('Speech playback failed:', event.error);
         }
       });
+
       try {
+        // Fix pour les navigateurs Chromium où speechSynthesis peut rester en pause
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
         window.speechSynthesis.speak(utterance);
       } catch (error) {
         finish();

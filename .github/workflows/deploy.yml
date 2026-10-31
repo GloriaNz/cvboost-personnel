@@ -1,0 +1,72 @@
+name: CI/CD Pipeline CVBoost Azure
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  test:
+    name: Run Unit Tests & Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run test suite
+        env:
+          SECRET_KEY: test-secret-key-ci
+          DATABASE_URL: sqlite:///:memory:
+          COOKIE_SECURE: "false"
+        run: |
+          python -m unittest discover tests
+
+  build-and-deploy:
+    name: Build Docker Image & Deploy to Azure
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to Azure Container Registry (ACR)
+        uses: azure/docker-login@v2
+        if: env.ACR_LOGIN_SERVER != ''
+        env:
+          ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+        with:
+          login-server: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build and push Docker image
+        if: env.ACR_LOGIN_SERVER != ''
+        env:
+          ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+        run: |
+          IMAGE_TAG=${{ github.sha }}
+          docker build -t $ACR_LOGIN_SERVER/cvboost:$IMAGE_TAG -t $ACR_LOGIN_SERVER/cvboost:latest .
+          docker push $ACR_LOGIN_SERVER/cvboost:$IMAGE_TAG
+          docker push $ACR_LOGIN_SERVER/cvboost:latest
+
+      - name: Deploy to Azure Web App for Containers
+        uses: azure/webapps-deploy@v3
+        if: env.AZURE_WEBAPP_NAME != ''
+        env:
+          AZURE_WEBAPP_NAME: ${{ secrets.AZURE_WEBAPP_NAME }}
+        with:
+          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+          images: ${{ secrets.ACR_LOGIN_SERVER }}/cvboost:${{ github.sha }}

@@ -3,6 +3,7 @@ import io
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from docx import Document
@@ -12,6 +13,7 @@ from app.ia import (
     AIConfigurationError,
     AIServiceError,
     DocumentExtractionError,
+    _groq_error_message,
     analyze_profile,
     extract_cv_text,
     generate_interview_question,
@@ -53,6 +55,11 @@ class IAServiceTests(unittest.TestCase):
     def test_rejects_missing_api_key(self):
         with self.assertRaises(AIConfigurationError):
             analyze_profile('CV text', 'job text', '')
+
+    def test_groq_errors_explain_invalid_key_quota_and_model_problems(self):
+        self.assertIn('GROQ_API_KEY', _groq_error_message(SimpleNamespace(status_code=401)))
+        self.assertIn('quota', _groq_error_message(SimpleNamespace(status_code=429)))
+        self.assertIn('GROQ_MODEL', _groq_error_message(SimpleNamespace(status_code=404)))
 
     @patch('app.ia.Groq')
     def test_analyze_profile_validates_and_normalizes_structured_response(self, groq_class):

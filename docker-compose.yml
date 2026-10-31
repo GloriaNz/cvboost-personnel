@@ -17,6 +17,22 @@ services:
       - cvboost_uploads:/app/uploads
     restart: unless-stopped
 
+  api:
+    build:
+      context: .
+    command: ["uvicorn", "api_service.main:app", "--host", "0.0.0.0", "--port", "8001"]
+    env_file:
+      - .env
+    environment:
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      GROQ_MODEL: ${GROQ_MODEL:-qwen/qwen3.8-27b}
+    ports:
+      - "127.0.0.1:8001:8001"
+    volumes:
+      - cvboost_audio:/app/api_service/temp_audio
+    restart: unless-stopped
+
 volumes:
   cvboost_instance:
   cvboost_uploads:
+  cvboost_audio:

@@ -66,52 +66,90 @@
       </section>
     </div>
 
-    <section class="card card-sm" style="margin:24px 0;">
-      <h2 style="font-size:1.1rem;margin-bottom:16px;">Simulation d’entretien</h2>
-      {% for turn in analysis.interview_history %}
-        <div class="interview-turn" style="margin-bottom:18px;">
-          <p><strong>Question {{ loop.index }} :</strong> {{ turn.question }}</p>
-          <button
-            type="button"
-            class="btn btn-ghost audio-play-button"
-            data-question="{{ turn.question }}"
-          >Écouter la question</button>
-          {% if turn.answer %}
-            <p><strong>Votre réponse :</strong> {{ turn.answer }}</p>
-          {% endif %}
+    {% set answered_count = analysis.interview_history|selectattr('answer')|list|length %}
+    <section class="interview-panel" id="interview" aria-labelledby="interview-title">
+      <header class="interview-header">
+        <div class="interview-heading">
+          <span class="interview-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v3m-4 0h8"/></svg>
+          </span>
+          <div>
+            <p class="interview-eyebrow">Entraînement personnalisé</p>
+            <h2 id="interview-title">Simulation d’entretien</h2>
+          </div>
         </div>
-      {% endfor %}
+        <span class="interview-count">{{ answered_count }} / 10 réponses</span>
+      </header>
+
+      <div class="interview-progress" role="progressbar" aria-label="Progression de la simulation" aria-valuemin="0" aria-valuemax="10" aria-valuenow="{{ answered_count }}">
+        <span style="width: {{ answered_count * 10 }}%;"></span>
+      </div>
+      <p class="interview-context">Les questions sont préparées à partir de votre CV et de l’offre analysée. Prenez le temps de structurer vos réponses.</p>
+
+      <div class="interview-conversation" aria-live="polite">
+        {% for turn in analysis.interview_history %}
+          {% if loop.last and not turn.answer %}
+            <article class="interview-question-card">
+              <div class="interview-question-meta">
+                <span class="question-number">QUESTION {{ loop.index }}</span>
+                <span class="question-live"><span></span> À vous de répondre</span>
+              </div>
+              <p class="interview-question-text">{{ turn.question }}</p>
+              <button type="button" class="btn btn-ghost audio-play-button" data-question="{{ turn.question }}">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Écouter la question
+              </button>
+            </article>
+          {% else %}
+            <article class="interview-history-turn">
+              <p class="history-question"><span>Q{{ loop.index }}</span>{{ turn.question }}</p>
+              {% if turn.answer %}
+                <div class="history-answer"><span class="answer-avatar" aria-hidden="true">Vous</span><p>{{ turn.answer }}</p></div>
+              {% endif %}
+            </article>
+          {% endif %}
+        {% endfor %}
+      </div>
+
       {% if analysis.interview_history and not analysis.interview_history[-1].answer %}
-        <form method="POST" action="{{ url_for('main.answer_interview', analysis_id=analysis.id) }}">
+        <form class="interview-answer-form" method="POST" action="{{ url_for('main.answer_interview', analysis_id=analysis.id) }}">
           {{ answer_form.hidden_tag() }}
           <div class="form-group">
-            {{ answer_form.answer.label(class="form-label") }}
-            {{ answer_form.answer(class="form-control", rows="4", maxlength="4000", placeholder="Écrivez votre réponse…") }}
+            {{ answer_form.answer.label(class="form-label", for="interview-answer") }}
+            {{ answer_form.answer(class="form-control interview-textarea", id="interview-answer", rows="5", minlength="2", maxlength="4000", placeholder="Présentez votre réponse avec des exemples concrets…", required=true, aria_describedby="answer-counter") }}
+            <div class="answer-field-footer">
+              <span class="result-ph">Minimum 2 caractères · Maximum 4 000</span>
+              <span class="answer-counter" id="answer-counter"><span data-answer-length>0</span> / 4 000</span>
+            </div>
             {% for error in answer_form.answer.errors %}
               <p class="form-error">{{ error }}</p>
             {% endfor %}
           </div>
-          <div
-            class="audio-controls"
-            data-transcribe-url="{{ url_for('main.transcribe_interview_audio', analysis_id=analysis.id) }}"
-          >
-            <p class="result-ph">
-              Vous pouvez dicter votre réponse. L’enregistrement sera envoyé à Groq
-              pour transcription, ne sera pas conservé par CVBoost, et ne sera ajouté
-              à la simulation qu’après vérification et envoi du texte. La lecture
-              audio des questions utilise la synthèse vocale de votre navigateur.
-            </p>
+          <div class="audio-controls" data-transcribe-url="{{ url_for('main.transcribe_interview_audio', analysis_id=analysis.id) }}">
+            <p class="audio-disclaimer">Vous pouvez dicter votre réponse. L’audio est transmis à Groq pour transcription et n’est pas conservé par CVBoost. Relisez le texte avant de l’envoyer. La lecture des questions utilise la synthèse vocale de votre navigateur.</p>
             <div class="audio-toolbar">
-              <button type="button" class="btn btn-ghost" data-audio-record>Enregistrer ma réponse</button>
+              <button type="button" class="btn btn-ghost" data-audio-record>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2m-7 9v3m-4 0h8"/></svg>
+                Dicter ma réponse
+              </button>
               <button type="button" class="btn btn-ghost" data-audio-stop disabled>Arrêter</button>
-              <button type="button" class="btn btn-primary" data-audio-transcribe disabled>Transcrire</button>
+              <button type="button" class="btn btn-ghost" data-audio-transcribe disabled>Transcrire</button>
             </div>
             <p class="audio-status" data-audio-status role="status" aria-live="polite"></p>
           </div>
-          <button type="submit" class="btn btn-primary btn-ripple">Envoyer ma réponse</button>
+          <div class="interview-submit-row">
+            <span class="result-ph">Votre réponse sera utilisée pour préparer la question suivante.</span>
+            <button type="submit" class="btn btn-primary btn-ripple">
+              Envoyer ma réponse
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14m-7-7 7 7-7 7"/></svg>
+            </button>
+          </div>
         </form>
-      {% elif analysis.interview_history and analysis.interview_history|length >= 10 %}
-        <p>Limite de 10 questions atteinte. Relancez l’analyse pour recommencer la simulation.</p>
+      {% elif analysis.interview_history and answered_count >= 10 %}
+        <div class="interview-complete" role="status">
+          <span class="complete-check" aria-hidden="true">✓</span>
+          <div><h3>Simulation terminée</h3><p>Vous avez répondu aux 10 questions. Relancez l’analyse pour commencer une nouvelle simulation.</p></div>
+        </div>
       {% endif %}
     </section>
   {% endif %}
