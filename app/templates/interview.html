@@ -28,14 +28,19 @@
             {% endif %}
           </div>
           {% if analysis %}
-            <a class="btn btn-primary btn-ripple practice-action" href="{{ url_for('main.result', cv_id=cv.id) }}#interview">
-              {% if analysis.interview_history and analysis.interview_history|selectattr('answer')|list|length >= 10 %}
-                Voir la simulation
-              {% else %}
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <a class="btn btn-primary btn-ripple practice-action" href="{{ url_for('main.interview_room', analysis_id=analysis.id) }}">
+                {% if analysis.interview_history and analysis.interview_history|selectattr('answer')|list|length >= 10 %}
+                  Voir la simulation
+                {% else %}
+                  Rejoindre la salle d'entretien
+                {% endif %}
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14m-7-7 7 7-7 7"/></svg>
+              </a>
+              <a class="btn btn-ghost practice-action" href="{{ url_for('main.result', cv_id=cv.id) }}#interview" style="font-size:0.8rem;padding:6px 12px;">
                 Continuer l’entraînement
-              {% endif %}
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14m-7-7 7 7-7 7"/></svg>
-            </a>
+              </a>
+            </div>
           {% else %}
             <a class="btn btn-primary btn-ripple practice-action" href="{{ url_for('main.result', cv_id=cv.id) }}">
               Analyser ce CV

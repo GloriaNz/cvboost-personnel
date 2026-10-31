@@ -191,6 +191,22 @@ def interview():
     return render_template('interview.html', cvs=cvs, analyses_by_cv=analyses_by_cv)
 
 
+@main.route('/interview/<int:analysis_id>')
+@login_required
+def interview_room(analysis_id):
+    analysis = db.get_or_404(AIAnalysis, analysis_id)
+    cv = analysis.cv
+    if cv.user_id != current_user.id:
+        flash('Accès non autorisé.', 'danger')
+        return redirect(url_for('main.history'))
+    return render_template(
+        'interview_room.html',
+        analysis=analysis,
+        cv=cv,
+        answer_form=InterviewAnswerForm(),
+    )
+
+
 # ── Result ────────────────────────────────────────────────────────────────────
 @main.route('/result/<int:cv_id>')
 @login_required
@@ -286,25 +302,28 @@ def answer_interview(analysis_id):
         flash('Accès non autorisé.', 'danger')
         return redirect(url_for('main.history'))
 
+    ref = request.referrer or ''
+    target_redirect = url_for('main.interview_room', analysis_id=analysis.id) if ('/interview/' in ref or 'room' in ref) else url_for('main.result', cv_id=cv.id, _anchor='interview')
+
     form = InterviewAnswerForm()
     if not form.validate_on_submit():
         flash('Votre réponse doit contenir entre 2 et 4 000 caractères.', 'danger')
-        return redirect(url_for('main.result', cv_id=cv.id, _anchor='interview'))
+        return redirect(target_redirect)
 
     history = analysis.interview_history
     if len(history) > 10:
         flash('La simulation a atteint sa limite. Relancez une analyse pour recommencer.', 'warning')
-        return redirect(url_for('main.result', cv_id=cv.id, _anchor='interview'))
+        return redirect(target_redirect)
     if not history or history[-1].get('answer'):
         flash('Aucune question en attente de réponse.', 'danger')
-        return redirect(url_for('main.result', cv_id=cv.id, _anchor='interview'))
+        return redirect(target_redirect)
 
     history[-1]['answer'] = form.answer.data.strip()
     if len(history) == 10:
         analysis.interview_history_json = json.dumps(history, ensure_ascii=False)
         db.session.commit()
         flash('Simulation terminée : les 10 réponses ont été enregistrées.', 'success')
-        return redirect(url_for('main.result', cv_id=cv.id, _anchor='interview'))
+        return redirect(target_redirect)
 
     try:
         cv_path = os.path.join(current_app.config['UPLOAD_FOLDER'], cv.filename_stored)
@@ -322,13 +341,13 @@ def answer_interview(analysis_id):
     except (AIConfigurationError, AIServiceError, DocumentExtractionError) as error:
         logger.warning('Simulation entretien impossible pour le document %s: %s', cv.id, error)
         flash(str(error), 'danger')
-        return redirect(url_for('main.result', cv_id=cv.id, _anchor='interview'))
+        return redirect(target_redirect)
 
     history.append({'question': question, 'answer': ''})
     analysis.interview_history_json = json.dumps(history, ensure_ascii=False)
     db.session.commit()
     flash('Réponse enregistrée. Voici la question suivante.', 'success')
-    return redirect(url_for('main.result', cv_id=cv.id, _anchor='interview'))
+    return redirect(target_redirect)
 
 
 @main.route('/analysis/<int:analysis_id>/interview/audio', methods=['POST'])

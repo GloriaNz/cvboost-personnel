@@ -43,7 +43,13 @@
       <div>
         <h2>Résumé du profil</h2>
         <p>{{ analysis.summary }}</p>
-        <span class="badge-inv">Indicateur d’aide, pas une décision automatique</span>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap;">
+          <a href="{{ url_for('main.interview_room', analysis_id=analysis.id) }}" class="btn btn-primary btn-ripple" style="padding:10px 20px;box-shadow:0 4px 18px rgba(37,99,235,0.35);">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="margin-right:6px;"><path d="M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v3m-4 0h8"/></svg>
+            Lancer la simulation d'entretien en direct
+          </a>
+          <span class="badge-inv">Indicateur d’aide, pas une décision automatique</span>
+        </div>
       </div>
     </div>
 

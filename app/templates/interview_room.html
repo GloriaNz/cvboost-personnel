@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}Simulation d'Entretien IA en Direct – CVBoost{% endblock %}
+{% block content %}
+
+{% set answered_count = analysis.interview_history|selectattr('answer')|list|length %}
+
+<div class="interview-room-container">
+  
+  <!-- En-tête de la session -->
+  <header class="room-header">
+    <div class="room-header-left">
+      <a href="{{ url_for('main.result', cv_id=cv.id) }}" class="room-back-btn" title="Retour aux résultats">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5m7 7-7-7 7-7"/></svg>
+        <span>Tableau de bord</span>
+      </a>
+      <div class="room-session-badge">
+        <span class="live-pulse"></span>
+        <span>SESSION EN DIRECT</span>
+      </div>
+    </div>
+    
+    <div class="room-header-center">
+      <h1>Simulation d’Entretien de Recrutement</h1>
+      <p class="room-sub">Poste : {{ analysis.job_description[:75] }}{% if analysis.job_description|length > 75 %}…{% endif %}</p>
+    </div>
+
+    <div class="room-header-right">
+      <div class="room-progress-badge">
+        <span class="progress-num">{{ answered_count }}</span> / 10 questions
+      </div>
+    </div>
+  </header>
+
+  <div class="room-progress-bar">
+    <div class="room-progress-fill" style="width: {{ answered_count * 10 }}%;"></div>
+  </div>
+
+  <!-- Plateau d'entretien immersif -->
+  <main class="room-stage">
+    
+    <!-- Colonne Gauche : L'Avatar du Recruteur IA -->
+    <aside class="recruiter-box">
+      <div class="avatar-card">
+        <div class="avatar-halo">
+          <div class="recruiter-avatar" id="recruiterAvatar">
+            <svg width="68" height="68" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+            <div class="audio-waves" id="audioWaves">
+              <span></span><span></span><span></span><span></span><span></span>
+            </div>
+          </div>
+        </div>
+        <div class="recruiter-info">
+          <h2>Sarah · Recruteuse IA TalentIA</h2>
+          <span class="recruiter-status" id="recruiterStatus">À votre écoute</span>
+        </div>
+        <div class="recruiter-tips">
+          <p>💡 <strong>Conseil :</strong> Répondez avec confiance en illustrant vos compétences par des exemples concrets de votre CV.</p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Colonne Droite : Fil de conversation et Interaction Vocale -->
+    <section class="dialogue-panel">
+      
+      <!-- Historique des échanges de questions / réponses -->
+      <div class="dialogue-scroll" id="dialogueScroll">
+        {% for turn in analysis.interview_history %}
+          {% if turn.answer or not loop.last %}
+            <!-- Bulle Recruteur passée -->
+            <div class="chat-bubble recruiter-bubble">
+              <div class="bubble-tag">Sarah · Recruteuse</div>
+              <div class="bubble-text">{{ turn.question }}</div>
+            </div>
+
+            <!-- Bulle Candidat passée -->
+            {% if turn.answer %}
+              <div class="chat-bubble candidate-bubble">
+                <div class="bubble-tag">Vous (Candidat)</div>
+                <div class="bubble-text">{{ turn.answer }}</div>
+              </div>
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+
+        <!-- Question Active En Cours -->
+        {% if analysis.interview_history and not analysis.interview_history[-1].answer %}
+          {% set current_turn = analysis.interview_history[-1] %}
+          <div class="active-question-banner">
+            <div class="active-banner-top">
+              <span class="badge-question-num">QUESTION {{ analysis.interview_history|length }} / 10</span>
+              <button type="button" class="btn-voice-replay audio-play-button" data-question="{{ current_turn.question }}" id="playActiveBtn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <span>Écouter la recruteuse parler</span>
+              </button>
+            </div>
+            <p class="active-question-body" id="activeQuestionText">{{ current_turn.question }}</p>
+          </div>
+        {% elif analysis.interview_history and answered_count >= 10 %}
+          <div class="interview-celebration">
+            <div class="celebration-icon">🎉</div>
+            <h2>Félicitations, simulation terminée !</h2>
+            <p>Vous avez répondu avec succès aux 10 questions de préparation à l'entretien.</p>
+            <a href="{{ url_for('main.result', cv_id=cv.id) }}" class="btn btn-primary btn-ripple">Retourner à mon analyse</a>
+          </div>
+        {% endif %}
+      </div>
+
+      <!-- Zone de Réponse Active (Microphone + Saisie) -->
+      {% if analysis.interview_history and not analysis.interview_history[-1].answer %}
+        <div class="answer-interactive-dock">
+          <form class="interview-answer-form" method="POST" action="{{ url_for('main.answer_interview', analysis_id=analysis.id) }}">
+            {{ answer_form.hidden_tag() }}
+            
+            <div class="dock-speech-bar audio-controls" data-transcribe-url="{{ url_for('main.transcribe_interview_audio', analysis_id=analysis.id) }}">
+              
+              <!-- Boutons de contrôle micro -->
+              <div class="dock-buttons">
+                <button type="button" class="btn-mic btn-mic-record" data-audio-record id="micRecordBtn">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2m-7 9v3m-4 0h8"/></svg>
+                  <span>Parler (Temps Réel)</span>
+                </button>
+                
+                <button type="button" class="btn-mic btn-mic-stop" data-audio-stop disabled id="micStopBtn">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                  <span>Arrêter</span>
+                </button>
+
+                <button type="button" class="btn-mic btn-mic-transcribe" data-audio-transcribe disabled id="micTranscribeBtn">
+                  <span>Transcrire via Groq</span>
+                </button>
+              </div>
+
+              <!-- Indicateur d'état vocal -->
+              <div class="dock-status-line">
+                <p class="audio-status" data-audio-status role="status" aria-live="polite">Cliquez sur « Parler » pour dicter directement votre réponse à Sarah.</p>
+              </div>
+            </div>
+
+            <!-- Champ texte de la réponse -->
+            <div class="form-group" style="margin-bottom:12px;">
+              {{ answer_form.answer(
+                  class="form-control interview-textarea room-textarea",
+                  id="interview-answer",
+                  rows="4",
+                  minlength="2",
+                  maxlength="4000",
+                  placeholder="Votre réponse s'affiche ici automatiquement au son de votre voix (ou vous pouvez taper directement)...",
+                  required=true
+              ) }}
+            </div>
+
+            <div class="dock-footer">
+              <span class="answer-counter" id="answer-counter"><span data-answer-length>0</span> / 4 000 caractères</span>
+              <button type="submit" class="btn btn-primary btn-ripple btn-send-answer">
+                <span>Envoyer ma réponse à la recruteuse</span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14m-7-7 7 7-7 7"/></svg>
+              </button>
+            </div>
+          </form>
+        </div>
+      {% endif %}
+
+    </section>
+
+  </main>
+
+</div>
+
+<script>
+// Auto-scroll du dialogue vers le bas
+document.addEventListener("DOMContentLoaded", () => {
+  const scrollArea = document.getElementById("dialogueScroll");
+  if (scrollArea) {
+    scrollArea.scrollTop = scrollArea.scrollHeight;
+  }
+  
+  // Animation de l'avatar quand la voix parle
+  const waves = document.getElementById("audioWaves");
+  const avatar = document.getElementById("recruiterAvatar");
+  const statusLbl = document.getElementById("recruiterStatus");
+
+  window.addEventListener("speechSynthesisStart", () => {
+    if (waves) waves.classList.add("active");
+    if (avatar) avatar.classList.add("speaking");
+    if (statusLbl) statusLbl.textContent = "Sarah est en train de parler…";
+  });
+
+  window.addEventListener("speechSynthesisEnd", () => {
+    if (waves) waves.classList.remove("active");
+    if (avatar) avatar.classList.remove("speaking");
+    if (statusLbl) statusLbl.textContent = "À votre écoute";
+  });
+});
+</script>
+
+{% endblock %}

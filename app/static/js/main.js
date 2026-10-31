@@ -531,9 +531,17 @@ function showToast(msg, type = 'info') {
         activeUtterance = undefined;
       };
 
-      utterance.addEventListener('end', finish);
+      utterance.addEventListener('start', () => {
+        window.dispatchEvent(new CustomEvent('speechSynthesisStart'));
+      });
+
+      utterance.addEventListener('end', () => {
+        finish();
+        window.dispatchEvent(new CustomEvent('speechSynthesisEnd'));
+      });
       utterance.addEventListener('error', event => {
         finish();
+        window.dispatchEvent(new CustomEvent('speechSynthesisEnd'));
         if (event.error !== 'canceled' && event.error !== 'interrupted') {
           showToast('La lecture audio a échoué.', 'error');
           console.error('Speech playback failed:', event.error);
@@ -541,13 +549,13 @@ function showToast(msg, type = 'info') {
       });
 
       try {
-        // Fix pour les navigateurs Chromium où speechSynthesis peut rester en pause
         if (window.speechSynthesis.paused) {
           window.speechSynthesis.resume();
         }
         window.speechSynthesis.speak(utterance);
       } catch (error) {
         finish();
+        window.dispatchEvent(new CustomEvent('speechSynthesisEnd'));
         showToast('La lecture audio a échoué.', 'error');
         console.error('Speech playback failed:', error);
       }
