@@ -205,9 +205,10 @@ docker compose up --build
 
 Renseignez également `GROQ_API_KEY` dans `.env` pour les fonctions IA.
 N'exposez pas le port de développement sur Internet. Les volumes locaux
-permettent les essais, mais ne remplacent pas un stockage durable de production
-sur AWS : les CV devront être migrés vers S3 et la base vers RDS avant un
-déploiement avec des données réelles.
+permettent les essais, mais ne remplacent pas le stockage persistant de Render.
+Le Blueprint Render gratuit est destiné aux démonstrations : sa base SQLite et
+les CV peuvent être perdus au redémarrage (voir le
+[guide de déploiement Render](./RENDER_DEPLOYMENT_GUIDE.md)).
 
 ### État du socle web et tests
 
@@ -219,9 +220,9 @@ déconnexion par POST avec protection CSRF. Le score aléatoire de démonstratio
 
 L'Assistant DRH du Sprint 3 est implémenté : extraction locale des textes PDF/DOCX,
 analyse d'une offre par Groq, score indicatif et simulation d'entretien avec
-dictée des réponses et lecture audio des questions. L'infrastructure AWS reste
-à construire. Le développement se fera et sera testé localement avant tout
-déploiement ou création de ressources AWS.
+dictée des réponses et lecture audio des questions. Le déploiement cloud est
+prévu sur Render ; le développement et les tests restent exécutés localement
+et dans GitHub Actions.
 
 Lancer les tests ciblés avec :
 
@@ -336,7 +337,7 @@ Il détaille :
 
 ---
 
-# 🚀 Sprint 4 : API Multimodale, Synthèse Vocale & Déploiement AWS
+# 🚀 Sprint 4 : API Multimodale, Synthèse Vocale & Déploiement Render
 
 ### 1. Orchestrateur FastAPI (`/speak-smart`)
 L'orchestrateur multimodal combine la reformulation intelligente et la synthèse vocale :
@@ -365,13 +366,10 @@ docker-compose up --build
 - **Orchestrateur Vocal (FastAPI)** : accessible sur `http://localhost:8001`
 - **Volumes persistants** : `cvboost_instance`, `cvboost_uploads`, `cvboost_audio`.
 
-### 3. Pipeline CI/CD GitHub Actions & Déploiement AWS
+### 3. Pipeline CI/CD GitHub Actions & Déploiement Render
 Le workflow automatisé se trouve dans `.github/workflows/deploy.yml` :
-1. **Tests automatiques** : Découverte et exécution automatique de la suite complète de 62 tests unitaires et d'intégration.
-2. **Build Docker & Push vers Amazon ECR** : Construction de l'image Docker tagged vers Amazon Elastic Container Registry.
-3. **Déploiement Continu AWS** :
-   - Déploiement managé Serverless sur **AWS App Runner** (`aws apprunner start-deployment`).
-   - Déploiement conteneurisé sur **AWS ECS Fargate** (`aws ecs update-service`).
-   - Déploiement sur une instance **AWS EC2** via script `aws/deploy-ec2.sh`.
+1. **Tests automatiques** : la suite de tests s'exécute dans GitHub Actions.
+2. **Déploiement continu** : Render déploie les deux services définis dans
+   `render.yaml` après la réussite des vérifications CI GitHub.
 
-Consultez le guide complet pas-à-pas : [AWS_DEPLOYMENT_GUIDE.md](file:///c:/Users/utilisitateur/OneDrive/Documents/26-01-kd-dev-ia-midi-c-mon-thu-kin-projet-capstone-final-cvb-glorianz/AWS_DEPLOYMENT_GUIDE.md).
+Consultez le [guide de déploiement Render](./RENDER_DEPLOYMENT_GUIDE.md).
