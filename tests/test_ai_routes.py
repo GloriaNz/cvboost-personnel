@@ -209,6 +209,59 @@ class AIRouteTests(unittest.TestCase):
             self.assertEqual(history[0]['answer'], 'Je vérifie les valeurs manquantes et les doublons.')
             self.assertEqual(history[1]['question'], 'Comment validez-vous la qualité des données ?')
 
+    def test_cv_pitch_uses_owned_cv_and_returns_text_for_voice_playback(self):
+        pitch = 'Je suis analyste de données et je transforme les chiffres en décisions.'
+        with patch('app.routes.extract_cv_text', return_value='CV text with professional experience') as extraction, patch(
+            'app.routes.generate_pitch', return_value=pitch
+        ) as pitch_service:
+            response = self.client.post(f'/result/{self.cv_id}/pitch')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json, {'pitch': pitch})
+        extraction.assert_called_once()
+        pitch_service.assert_called_once_with(
+            'CV text with professional experience',
+            groq_key='test-key',
+            gemini_key=None,
+            mistral_key=None,
+            groq_model='qwen/qwen3.8-27b',
+            gemini_model='gemini-3.8-flash',
+            mistral_model='mistral-small-latest',
+        )
+
+        page = self.client.get(f'/result/{self.cv_id}')
+        self.assertEqual(page.status_code, 200)
+        self.assertIn('Préparer votre présentation orale'.encode(), page.data)
+        self.assertIn(b'pitch-form', page.data)
+        self.assertIn(b'pitch-play', page.data)
+
+    def test_cv_pitch_cannot_use_another_users_cv(self):
+        with patch('app.routes.generate_pitch') as pitch_service:
+            response = self.client.post(f'/result/{self.other_cv_id}/pitch')
+
+        self.assertEqual(response.status_code, 404)
+        pitch_service.assert_not_called()
+
+    def test_cv_pitch_requires_authentication(self):
+        client = self.app.test_client()
+
+        response = client.post(f'/result/{self.cv_id}/pitch')
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/login', response.headers['Location'])
+
+    def test_cv_pitch_returns_actionable_error_when_no_provider_is_configured(self):
+        self.app.config.update(
+            GROQ_API_KEY=None,
+            GEMINI_API_KEY=None,
+            MISTRAL_API_KEY=None,
+        )
+        with patch('app.routes.extract_cv_text', return_value='CV text with professional experience'):
+            response = self.client.post(f'/result/{self.cv_id}/pitch')
+
+        self.assertEqual(response.status_code, 503)
+        self.assertIn('Configurez une clé'.encode(), response.json['error'].encode())
+
     def test_result_ranks_local_offers_and_submits_selected_offer(self):
         jobs_path = Path(self.temp_directory.name) / 'jobs.csv'
         with jobs_path.open('w', encoding='utf-8-sig', newline='') as csv_file:

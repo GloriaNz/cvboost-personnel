@@ -830,3 +830,58 @@ function showToast(msg, type = 'info') {
     });
   });
 })();
+
+// ── 17. CV presentation pitch ──────────────────────────────────
+(function initPitchGenerator() {
+  const form = document.getElementById('pitch-form');
+  const status = document.getElementById('pitch-status');
+  const output = document.getElementById('pitch-output');
+  const pitchText = document.getElementById('pitch-text');
+  const generateButton = document.getElementById('pitch-generate');
+  const playButton = document.getElementById('pitch-play');
+  const stopButton = document.getElementById('pitch-stop');
+  if (!form || !status || !output || !pitchText || !generateButton || !playButton || !stopButton) return;
+
+  let pitch = '';
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    generateButton.disabled = true;
+    status.textContent = 'Création du pitch à partir de votre CV…';
+
+    try {
+      const response = await fetch(form.action, {
+        method: 'POST',
+        body: new FormData(form),
+        headers: { Accept: 'application/json' },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Impossible de créer le pitch. Réessayez.');
+
+      pitch = data.pitch;
+      pitchText.textContent = pitch;
+      output.hidden = false;
+      playButton.disabled = !('speechSynthesis' in window);
+      stopButton.disabled = !('speechSynthesis' in window);
+      status.textContent = playButton.disabled
+        ? 'Le pitch est prêt, mais la lecture vocale n’est pas prise en charge par ce navigateur.'
+        : 'Votre pitch est prêt. Vous pouvez l’écouter et le relire avant votre entretien.';
+    } catch (error) {
+      status.textContent = error.message || 'Impossible de créer le pitch. Réessayez.';
+    } finally {
+      generateButton.disabled = false;
+    }
+  });
+
+  playButton.addEventListener('click', () => {
+    if (!pitch || !('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(pitch);
+    utterance.lang = 'fr-FR';
+    const frenchVoice = window.speechSynthesis.getVoices().find(voice => voice.lang.toLowerCase().startsWith('fr'));
+    if (frenchVoice) utterance.voice = frenchVoice;
+    window.speechSynthesis.speak(utterance);
+  });
+
+  stopButton.addEventListener('click', () => window.speechSynthesis.cancel());
+})();

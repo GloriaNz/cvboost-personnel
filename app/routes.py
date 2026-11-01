@@ -28,6 +28,7 @@ from app.ia import (
     DocumentExtractionError,
     analyze_profile,
     extract_cv_text,
+    generate_pitch,
     generate_interview_question,
     transcribe_audio,
 )
@@ -274,6 +275,38 @@ def result(cv_id):
         job_offers=job_offers,
         job_offers_error=job_offers_error,
     )
+
+
+@main.route('/result/<int:cv_id>/pitch', methods=['POST'])
+@login_required
+def create_cv_pitch(cv_id):
+    cv = db.get_or_404(CV, cv_id)
+    if cv.user_id != current_user.id:
+        abort(404)
+
+    try:
+        cv_path = os.path.join(current_app.config['UPLOAD_FOLDER'], cv.filename_stored)
+        extension = cv.filename_stored.rsplit('.', 1)[-1].lower()
+        cv_text = extract_cv_text(cv_path, extension)
+        pitch = generate_pitch(
+            cv_text,
+            groq_key=current_app.config.get('GROQ_API_KEY'),
+            gemini_key=current_app.config.get('GEMINI_API_KEY'),
+            mistral_key=current_app.config.get('MISTRAL_API_KEY'),
+            groq_model=current_app.config.get('GROQ_MODEL'),
+            gemini_model=current_app.config.get('GEMINI_MODEL'),
+            mistral_model=current_app.config.get('MISTRAL_MODEL'),
+        )
+    except DocumentExtractionError as error:
+        logger.warning('Création du pitch impossible pour le document %s: %s', cv.id, error)
+        return jsonify(error=str(error)), 422
+    except AIConfigurationError as error:
+        return jsonify(error=str(error)), 503
+    except AIServiceError as error:
+        logger.warning('Création du pitch impossible pour le document %s: %s', cv.id, error)
+        return jsonify(error=str(error)), 502
+
+    return jsonify(pitch=pitch)
 
 
 @main.route('/result/<int:cv_id>/analyze', methods=['POST'])

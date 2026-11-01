@@ -32,6 +32,23 @@
     </p>
   </div>
 
+  <section class="card card-sm" style="margin-bottom:24px;" aria-labelledby="pitch-title">
+    <h2 id="pitch-title" style="font-size:1.1rem;margin-bottom:8px;">Préparer votre présentation orale</h2>
+    <p class="result-ph" style="margin-bottom:14px;">Créez un pitch de présentation à partir des informations de votre CV, puis écoutez-le avec la voix française disponible dans votre navigateur.</p>
+    <form id="pitch-form" method="POST" action="{{ url_for('main.create_cv_pitch', cv_id=cv.id) }}">
+      {{ match_form.hidden_tag() }}
+      <button id="pitch-generate" type="submit" class="btn btn-primary btn-ripple">Créer mon pitch</button>
+    </form>
+    <p id="pitch-status" class="result-ph" role="status" aria-live="polite" style="margin-top:12px;"></p>
+    <div id="pitch-output" hidden>
+      <blockquote id="pitch-text" style="margin:12px 0;padding:12px 16px;border-left:3px solid #2563eb;background:#f8fafc;"></blockquote>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button id="pitch-play" type="button" class="btn btn-primary" disabled>Écouter le pitch</button>
+        <button id="pitch-stop" type="button" class="btn btn-ghost" disabled>Arrêter</button>
+      </div>
+    </div>
+  </section>
+
   {% if analysis %}
     <div class="result-hero">
       <div class="score-ring" role="img" aria-label="Compatibilité indicative : {{ analysis.match_score }} pour cent">

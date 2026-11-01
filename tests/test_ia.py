@@ -18,6 +18,7 @@ from app.ia import (
     analyze_profile,
     extract_cv_text,
     generate_interview_question,
+    generate_pitch,
     transcribe_audio,
 )
 
@@ -141,6 +142,23 @@ class IAServiceTests(unittest.TestCase):
             'CV', 'Offre', 'Résumé', [], 'J’ai utilisé SQL.', 'test-key'
         )
         self.assertEqual(question, 'Comment avez-vous utilisé SQL ?')
+
+    @patch('app.ia.Groq')
+    def test_pitch_is_generated_from_cv_as_a_french_first_person_presentation(self, groq_class):
+        pitch_text = 'Je suis analyste de données et je transforme les chiffres en décisions.'
+        groq_class.return_value.chat.completions.create.return_value.choices = [
+            Mock(message=Mock(content=pitch_text))
+        ]
+
+        pitch = generate_pitch('CV avec expérience en analyse de données.', groq_key='test-key')
+
+        self.assertEqual(pitch, pitch_text)
+        messages = groq_class.return_value.chat.completions.create.call_args.kwargs['messages']
+        self.assertIn('à la première personne', messages[0]['content'])
+        self.assertEqual(
+            json.loads(messages[1]['content']),
+            {'cv_text': 'CV avec expérience en analyse de données.'},
+        )
 
     @patch('app.ia.Groq')
     def test_transcribes_audio_in_french(self, groq_class):

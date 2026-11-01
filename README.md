@@ -224,6 +224,11 @@ dictée des réponses et lecture audio des questions. Le déploiement cloud est
 prévu sur Render ; le développement et les tests restent exécutés localement
 et dans GitHub Actions.
 
+Depuis la page de résultat d'un CV, vous pouvez également générer un pitch de
+présentation basé sur son contenu et l'écouter avec la synthèse vocale française
+du navigateur. Une clé Gemini, Groq ou Mistral doit être configurée pour générer
+le texte ; la disponibilité de la voix dépend du navigateur et de l'appareil.
+
 Lancer les tests ciblés avec :
 
 ```powershell
