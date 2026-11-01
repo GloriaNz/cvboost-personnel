@@ -63,7 +63,7 @@ def health_check():
     return {
         "status": "healthy",
         "service": "api_service",
-        "llm_engine": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
+        "llm_engine": os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b"),
         "tts_engine": "Coqui-compatible VITS audio synthesizer",
     }
 

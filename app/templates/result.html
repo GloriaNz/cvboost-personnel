@@ -9,8 +9,8 @@
   </div>
 
   <div class="card card-sm" style="margin-bottom:24px;">
-    <h2 style="font-size:1.1rem;margin-bottom:8px;">Analyser {{ cv.filename_original }}</h2>
-    <p style="margin-bottom:16px;">Collez l’offre d’emploi pour obtenir un résumé, une compatibilité indicative et une première question d’entretien.</p>
+    <h2 style="font-size:1.1rem;margin-bottom:8px;">Comparer {{ cv.filename_original }} à une offre d’emploi</h2>
+    <p style="margin-bottom:16px;">Collez ici l’offre du poste visé — pas le texte de votre CV. L’IA compare les compétences demandées à celles de votre CV pour estimer leur compatibilité et préparer des questions d’entretien adaptées.</p>
     <form method="POST" action="{{ url_for('main.analyze_cv', cv_id=cv.id) }}">
       {{ match_form.hidden_tag() }}
       <div class="form-group">
@@ -28,7 +28,7 @@
       <button type="submit" class="btn btn-primary btn-ripple">Analyser mon profil</button>
     </form>
     <p class="result-ph" style="margin-top:14px;">
-      Le texte du CV et de l’offre sera envoyé à Groq pour analyse. Évitez d’inclure des informations sensibles non nécessaires.
+      Le CV et l’offre sont transmis au fournisseur d’IA configuré pour l’analyse. N’incluez pas d’informations sensibles inutiles. Le score reste indicatif.
     </p>
   </div>
 
@@ -73,88 +73,94 @@
     </div>
 
     {% set answered_count = analysis.interview_history|selectattr('answer')|list|length %}
-    <section class="interview-panel" id="interview" aria-labelledby="interview-title">
-      <header class="interview-header">
-        <div class="interview-heading">
-          <span class="interview-icon" aria-hidden="true">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v3m-4 0h8"/></svg>
-          </span>
-          <div>
-            <p class="interview-eyebrow">Entraînement personnalisé</p>
-            <h2 id="interview-title">Simulation d’entretien</h2>
+    {% set current_q = analysis.interview_history[-1].question if analysis.interview_history else '' %}
+
+    <!-- ── Passerelle : Espace Dédié de Simulation d'Entretien ── -->
+    <section class="card card-sm interview-gateway-card" id="interview" aria-labelledby="interview-gateway-title" style="margin-bottom:24px;border:2px solid #93c5fd;background:linear-gradient(135deg, #eff6ff 0%, #ffffff 60%, #f0fdf4 100%);padding:28px 24px;border-radius:16px;box-shadow:0 8px 30px rgba(37,99,235,0.08);">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-bottom:18px;">
+        <div style="max-width:680px;">
+          <div style="display:inline-flex;align-items:center;gap:6px;background:#dbeafe;color:#1d4ed8;padding:4px 12px;border-radius:999px;font-size:0.75rem;font-weight:700;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;">
+            <span style="width:8px;height:8px;background:#2563eb;border-radius:50%;display:inline-block;"></span>
+            Étape 2 · Espace d'Entraînement Dédié
           </div>
+          <h2 id="interview-gateway-title" style="font-size:1.35rem;font-weight:800;color:#0f172a;margin-bottom:8px;">
+            Simulation d’entretien avec la recruteuse IA
+          </h2>
+          <p style="color:#475569;font-size:0.95rem;line-height:1.5;">
+            L'analyse de vos compétences est terminée. Pour vous préparer dans les conditions réelles d'un recrutement, entraînez-vous en face-à-face vocal avec <strong>Sarah</strong>, notre recruteuse IA, dans un <strong>espace immersif distinct</strong>.
+          </p>
         </div>
-        <span class="interview-count">{{ answered_count }} / 10 réponses</span>
-      </header>
-
-      <div class="interview-progress" role="progressbar" aria-label="Progression de la simulation" aria-valuemin="0" aria-valuemax="10" aria-valuenow="{{ answered_count }}">
-        <span style="width: {{ answered_count * 10 }}%;"></span>
+        <div style="text-align:right;">
+          <span class="interview-count" style="display:inline-block;background:#ffffff;border:1px solid #cbd5e1;padding:6px 14px;border-radius:999px;font-size:0.85rem;font-weight:700;color:#1e40af;">
+            {{ answered_count }} / 10 réponses
+          </span>
+        </div>
       </div>
-      <p class="interview-context">Les questions sont préparées à partir de votre CV et de l’offre analysée. Prenez le temps de structurer vos réponses.</p>
 
-      <div class="interview-conversation" aria-live="polite">
-        {% for turn in analysis.interview_history %}
-          {% if loop.last and not turn.answer %}
-            <article class="interview-question-card">
-              <div class="interview-question-meta">
-                <span class="question-number">QUESTION {{ loop.index }}</span>
-                <span class="question-live"><span></span> À vous de répondre</span>
-              </div>
-              <p class="interview-question-text">{{ turn.question }}</p>
-              <button type="button" class="btn btn-ghost audio-play-button" data-question="{{ turn.question }}">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                Écouter la question
-              </button>
-            </article>
-          {% else %}
-            <article class="interview-history-turn">
-              <p class="history-question"><span>Q{{ loop.index }}</span>{{ turn.question }}</p>
-              {% if turn.answer %}
-                <div class="history-answer"><span class="answer-avatar" aria-hidden="true">Vous</span><p>{{ turn.answer }}</p></div>
-              {% endif %}
-            </article>
-          {% endif %}
-        {% endfor %}
+      <div class="interview-progress" role="progressbar" aria-label="Progression de la simulation" aria-valuemin="0" aria-valuemax="10" aria-valuenow="{{ answered_count }}" style="height:8px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin-bottom:20px;">
+        <span style="display:block;height:100%;background:linear-gradient(90deg, #2563eb, #7c3aed);width: {{ answered_count * 10 }}%;transition:width 0.3s ease;"></span>
       </div>
 
       {% if analysis.interview_history and not analysis.interview_history[-1].answer %}
-        <form class="interview-answer-form" method="POST" action="{{ url_for('main.answer_interview', analysis_id=analysis.id) }}">
-          {{ answer_form.hidden_tag() }}
-          <div class="form-group">
-            {{ answer_form.answer.label(class="form-label", for="interview-answer") }}
-            {{ answer_form.answer(class="form-control interview-textarea", id="interview-answer", rows="5", minlength="2", maxlength="4000", placeholder="Présentez votre réponse avec des exemples concrets…", required=true, aria_describedby="answer-counter") }}
-            <div class="answer-field-footer">
-              <span class="result-ph">Minimum 2 caractères · Maximum 4 000</span>
-              <span class="answer-counter" id="answer-counter"><span data-answer-length>0</span> / 4 000</span>
-            </div>
-            {% for error in answer_form.answer.errors %}
-              <p class="form-error">{{ error }}</p>
-            {% endfor %}
+        <div style="background:#ffffff;border:1px solid #bfdbfe;border-radius:12px;padding:18px 20px;margin-bottom:22px;box-shadow:0 2px 10px rgba(37,99,235,0.06);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+            <span style="font-size:0.75rem;font-weight:800;color:#1d4ed8;letter-spacing:0.5px;">PREMIÈRE QUESTION PRÉPARÉE POUR VOUS</span>
+            <span style="font-size:0.75rem;background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:6px;font-weight:600;">Question {{ analysis.interview_history|length }} / 10</span>
           </div>
-          <div class="audio-controls" data-transcribe-url="{{ url_for('main.transcribe_interview_audio', analysis_id=analysis.id) }}">
-            <p class="audio-disclaimer">Vous pouvez dicter votre réponse. L’audio est transmis à Groq pour transcription et n’est pas conservé par CVBoost. Relisez le texte avant de l’envoyer. La lecture des questions utilise la synthèse vocale de votre navigateur.</p>
-            <div class="audio-toolbar">
-              <button type="button" class="btn btn-ghost" data-audio-record>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2m-7 9v3m-4 0h8"/></svg>
-                Dicter ma réponse
-              </button>
-              <button type="button" class="btn btn-ghost" data-audio-stop disabled>Arrêter</button>
-              <button type="button" class="btn btn-ghost" data-audio-transcribe disabled>Transcrire</button>
-            </div>
-            <p class="audio-status" data-audio-status role="status" aria-live="polite"></p>
+          <p style="font-size:1.05rem;font-weight:600;color:#0f172a;line-height:1.5;margin-bottom:6px;">
+            « {{ current_q }} »
+          </p>
+          <p style="font-size:0.8rem;color:#64748b;">
+            Sarah a formulé cette question spécifiquement selon les exigences de l'offre et vos expériences.
+          </p>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px;">
+          <a href="{{ url_for('main.interview_room', analysis_id=analysis.id) }}" class="btn btn-primary btn-ripple" style="padding:13px 26px;font-size:0.98rem;font-weight:700;display:inline-flex;align-items:center;gap:10px;box-shadow:0 6px 20px rgba(37,99,235,0.32);">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v3m-4 0h8"/></svg>
+            <span>Entrer dans la Salle d'Entretien Dédiée</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14m-7-7 7 7-7 7"/></svg>
+          </a>
+          <span style="font-size:0.85rem;color:#64748b;">Micro en direct · Synthèse vocale · Plateau interactif</span>
+        </div>
+
+        <!-- Option de réponse rapide sans quitter la page (accordéon) -->
+        <details class="quick-answer-details" style="margin-top:16px;border-top:1px dashed #cbd5e1;padding-top:14px;">
+          <summary style="font-size:0.85rem;color:#475569;cursor:pointer;font-weight:600;user-select:none;">
+            ⚙️ Ou répondre rapidement depuis cette page (mode texte / sans avatar)
+          </summary>
+          <div style="margin-top:14px;">
+            <form class="interview-answer-form" method="POST" action="{{ url_for('main.answer_interview', analysis_id=analysis.id) }}">
+              {{ answer_form.hidden_tag() }}
+              <div class="form-group">
+                {{ answer_form.answer.label(class="form-label", for="interview-answer", text="Votre réponse à la question") }}
+                {{ answer_form.answer(class="form-control interview-textarea", id="interview-answer", rows="4", minlength="2", maxlength="4000", placeholder="Présentez votre réponse avec des exemples concrets…", required=true, aria_describedby="answer-counter") }}
+                <div class="answer-field-footer">
+                  <span class="result-ph">Minimum 2 caractères · Maximum 4 000</span>
+                  <span class="answer-counter" id="answer-counter"><span data-answer-length>0</span> / 4 000</span>
+                </div>
+                {% for error in answer_form.answer.errors %}
+                  <p class="form-error">{{ error }}</p>
+                {% endfor %}
+              </div>
+              <div class="interview-submit-row" style="margin-top:10px;">
+                <span class="result-ph">Votre réponse sera transmise pour préparer la question suivante.</span>
+                <button type="submit" class="btn btn-primary btn-ripple">
+                  Envoyer ma réponse
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14m-7-7 7 7-7 7"/></svg>
+                </button>
+              </div>
+            </form>
           </div>
-          <div class="interview-submit-row">
-            <span class="result-ph">Votre réponse sera utilisée pour préparer la question suivante.</span>
-            <button type="submit" class="btn btn-primary btn-ripple">
-              Envoyer ma réponse
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14m-7-7 7 7-7 7"/></svg>
-            </button>
-          </div>
-        </form>
+        </details>
       {% elif analysis.interview_history and answered_count >= 10 %}
-        <div class="interview-complete" role="status">
-          <span class="complete-check" aria-hidden="true">✓</span>
-          <div><h3>Simulation terminée</h3><p>Vous avez répondu aux 10 questions. Relancez l’analyse pour commencer une nouvelle simulation.</p></div>
+        <div class="interview-complete" role="status" style="display:flex;align-items:center;gap:16px;background:#ffffff;padding:20px;border-radius:12px;border:1px solid #bbf7d0;">
+          <span class="complete-check" aria-hidden="true" style="font-size:1.8rem;color:#16a34a;">✓</span>
+          <div>
+            <h3 style="font-size:1.1rem;color:#15803d;margin-bottom:4px;">Simulation terminée avec succès</h3>
+            <p style="color:#475569;margin-bottom:8px;">Vous avez répondu aux 10 questions de préparation.</p>
+            <a href="{{ url_for('main.interview_room', analysis_id=analysis.id) }}" class="btn btn-ghost" style="font-size:0.85rem;padding:6px 12px;">Consulter le compte-rendu complet dans la salle d'entretien</a>
+          </div>
         </div>
       {% endif %}
     </section>

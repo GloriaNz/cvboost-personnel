@@ -25,7 +25,9 @@ class AIRouteTests(unittest.TestCase):
             'UPLOAD_FOLDER': str(self.upload_directory),
             'UPLOAD_AUDIT_LOG': str(Path(self.temp_directory.name) / 'audit.jsonl'),
             'GROQ_API_KEY': 'test-key',
-            'GROQ_MODEL': 'llama-3.3-70b-versatile',
+            'GEMINI_API_KEY': None,
+            'MISTRAL_API_KEY': None,
+            'GROQ_MODEL': 'qwen/qwen3.8-27b',
             'GROQ_TRANSCRIPTION_MODEL': 'whisper-large-v3-turbo',
         })
         self.client = self.app.test_client()
@@ -99,6 +101,51 @@ class AIRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn('/login', response.headers['Location'])
 
+    def test_interview_room_offers_a_voice_conversation(self):
+        analysis_id = self.create_pending_analysis()
+
+        response = self.client.get(f'/interview/{analysis_id}')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'D\xc3\xa9marrer l\xe2\x80\x99entretien vocal', response.data)
+        self.assertIn(b'entendre Sarah', response.data)
+        self.assertIn(b'Parlez-moi de votre exp\xc3\xa9rience avec Python.', response.data)
+
+    def test_history_shows_a_confirmed_delete_action_for_each_cv(self):
+        response = self.client.get('/history')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            f'/history/{self.cv_id}/delete'.encode(),
+            response.data,
+        )
+        self.assertIn(b'Supprimer ce CV, son analyse et son historique', response.data)
+
+    def test_delete_cv_history_removes_file_cv_and_linked_analysis(self):
+        analysis_id = self.create_pending_analysis()
+        stored_path = self.upload_directory / self.cv.filename_stored
+
+        response = self.client.post(f'/history/{self.cv_id}/delete')
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers['Location'], '/history')
+        self.assertFalse(stored_path.exists())
+        with self.app.app_context():
+            self.assertIsNone(db.session.get(CV, self.cv_id))
+            self.assertIsNone(db.session.get(AIAnalysis, analysis_id))
+
+    def test_delete_cv_history_cannot_delete_another_users_cv(self):
+        response = self.client.post(f'/history/{self.other_cv_id}/delete')
+
+        self.assertEqual(response.status_code, 404)
+        with self.app.app_context():
+            self.assertIsNotNone(db.session.get(CV, self.other_cv_id))
+
+    def test_delete_cv_history_requires_post(self):
+        response = self.client.get(f'/history/{self.cv_id}/delete')
+
+        self.assertEqual(response.status_code, 405)
+
     @staticmethod
     def analysis_response():
         return {
@@ -125,7 +172,7 @@ class AIRouteTests(unittest.TestCase):
             'CV text',
             'Poste analyste de données avec Python et SQL.',
             'test-key',
-            'llama-3.3-70b-versatile',
+            'qwen/qwen3.8-27b',
         )
         with self.app.app_context():
             analysis = AIAnalysis.query.filter_by(cv_id=self.cv_id).one()
@@ -137,6 +184,8 @@ class AIRouteTests(unittest.TestCase):
         page = self.client.get(f'/result/{self.cv_id}')
         self.assertEqual(page.status_code, 200)
         self.assertIn(b'85%', page.data)
+        self.assertIn('pas le texte de votre CV'.encode(), page.data)
+        self.assertIn('Description de l’offre d’emploi à cibler'.encode(), page.data)
         self.assertIn('Parlez-moi de votre dernier projet data.'.encode(), page.data)
         self.assertIn(b'Gloria', page.data)
         self.assertIn('Simulation d’entretien'.encode(), page.data)
@@ -268,6 +317,57 @@ class AIRouteTests(unittest.TestCase):
             saved_analysis = db.session.get(AIAnalysis, analysis_id)
             self.assertEqual(len(saved_analysis.interview_history), 10)
             self.assertEqual(saved_analysis.interview_history[-1]['answer'], 'Ma dernière réponse.')
+
+    def test_voice_answer_returns_the_next_question_as_json(self):
+        analysis_id = self.create_pending_analysis()
+        with patch('app.routes.extract_cv_text', return_value='CV text'), patch(
+            'app.routes.generate_interview_question',
+            return_value='Quel projet vous a rendu le plus fier ?',
+        ):
+            response = self.client.post(
+                f'/analysis/{analysis_id}/interview',
+                data={'answer': 'J’ai construit un outil de suivi des candidatures.'},
+                headers={'Accept': 'application/json'},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json['question'], 'Quel projet vous a rendu le plus fier ?')
+        self.assertEqual(response.json['question_number'], 2)
+        self.assertFalse(response.json['completed'])
+        with self.app.app_context():
+            saved_analysis = db.session.get(AIAnalysis, analysis_id)
+            self.assertEqual(saved_analysis.interview_history[0]['answer'], 'J’ai construit un outil de suivi des candidatures.')
+            self.assertEqual(saved_analysis.interview_history[1]['question'], 'Quel projet vous a rendu le plus fier ?')
+
+    def test_voice_answer_returns_completion_after_the_tenth_answer(self):
+        with self.app.app_context():
+            analysis = AIAnalysis(
+                cv_id=self.cv_id,
+                job_description='Offre analyste de données avec Python et SQL.',
+                summary='Profil expérimenté.',
+                match_score=80,
+                strengths_json='[]',
+                gaps_json='[]',
+                interview_history_json=json.dumps([
+                    {'question': f'Question {index}', 'answer': 'Réponse précédente'}
+                    for index in range(1, 10)
+                ] + [{'question': 'Question 10', 'answer': ''}]),
+            )
+            db.session.add(analysis)
+            db.session.commit()
+            analysis_id = analysis.id
+
+        response = self.client.post(
+            f'/analysis/{analysis_id}/interview',
+            data={'answer': 'Voici ma dernière réponse.'},
+            headers={'Accept': 'application/json'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json, {'answered_count': 10, 'completed': True})
+        with self.app.app_context():
+            saved_analysis = db.session.get(AIAnalysis, analysis_id)
+            self.assertEqual(saved_analysis.interview_history[-1]['answer'], 'Voici ma dernière réponse.')
 
     def create_pending_analysis(self, cv_id=None):
         with self.app.app_context():

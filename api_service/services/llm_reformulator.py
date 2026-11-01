@@ -13,10 +13,11 @@ def reformulate_pitch(cv_text: str, job_target: Optional[str] = None) -> str:
     """
     Reformule le CV brut en un discours fluide, percutant et engageant via Groq.
     """
-    api_key = os.getenv("GROQ_API_KEY")
-    model = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    groq_key = os.getenv("GROQ_API_KEY")
+    mistral_key = os.getenv("MISTRAL_API_KEY")
 
-    if not api_key:
+    if not any([gemini_key, groq_key, mistral_key]):
         lines = [line.strip() for line in cv_text.splitlines() if line.strip()]
         intro = lines[0] if lines else "Candidat qualifié"
         target_str = f" pour le poste de {job_target}" if job_target else ""
@@ -27,8 +28,7 @@ def reformulate_pitch(cv_text: str, job_target: Optional[str] = None) -> str:
         )
 
     try:
-        from groq import Groq
-        client = Groq(api_key=api_key, timeout=30.0)
+        from app.llm_router import call_llm_with_fallback
 
         prompt = (
             "Tu es un coach expert en communication et pitch de recrutement. "
@@ -39,16 +39,20 @@ def reformulate_pitch(cv_text: str, job_target: Optional[str] = None) -> str:
         if job_target:
             prompt += f"\nPoste ciblé : {job_target}"
 
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": f"CV :\n{cv_text[:4000]}"}
-            ],
+        messages = [
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": f"CV :\n{cv_text[:4000]}"}
+        ]
+
+        pitch, provider_used = call_llm_with_fallback(
+            messages=messages,
             temperature=0.3,
-            max_tokens=300,
+            json_mode=False,
+            gemini_key=gemini_key,
+            groq_key=groq_key,
+            mistral_key=mistral_key,
         )
-        pitch = response.choices[0].message.content.strip()
+        pitch = pitch.strip()
         if pitch.startswith('"') and pitch.endswith('"'):
             pitch = pitch[1:-1]
         return pitch

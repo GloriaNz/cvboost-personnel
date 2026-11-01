@@ -4,7 +4,7 @@ import json
 import logging
 import io
 from urllib.parse import urljoin, urlparse
-from flask import Blueprint, abort, render_template, redirect, url_for, flash, request, current_app
+from flask import Blueprint, abort, jsonify, render_template, redirect, url_for, flash, request, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -13,6 +13,7 @@ from app import db
 from app.audit import write_upload_audit
 from app.models import AIAnalysis, User, CV
 from app.forms import (
+    DeleteCVForm,
     InterviewAnswerForm,
     InterviewAudioForm,
     LoginForm,
@@ -174,7 +175,38 @@ def upload():
 @login_required
 def history():
     cvs = CV.query.filter_by(user_id=current_user.id).order_by(CV.date_upload.desc()).all()
-    return render_template('history.html', cvs=cvs)
+    return render_template('history.html', cvs=cvs, delete_form=DeleteCVForm())
+
+
+@main.route('/history/<int:cv_id>/delete', methods=['POST'])
+@login_required
+def delete_cv_history(cv_id):
+    form = DeleteCVForm()
+    if not form.validate_on_submit():
+        abort(400, description='Formulaire de suppression invalide.')
+
+    cv = db.get_or_404(CV, cv_id)
+    if cv.user_id != current_user.id:
+        abort(404)
+
+    upload_folder = os.path.realpath(current_app.config['UPLOAD_FOLDER'])
+    stored_name = secure_filename(cv.filename_stored)
+    stored_path = os.path.realpath(os.path.join(upload_folder, stored_name))
+    if os.path.dirname(stored_path) != upload_folder or stored_name != cv.filename_stored:
+        abort(400, description='Chemin de fichier invalide.')
+
+    db.session.delete(cv)
+    db.session.commit()
+
+    try:
+        if os.path.isfile(stored_path):
+            os.remove(stored_path)
+    except OSError:
+        logger.exception('Impossible de supprimer le fichier du CV %s', cv_id)
+        flash('L’historique a été supprimé, mais le fichier du CV n’a pas pu être effacé.', 'warning')
+    else:
+        flash('Le CV, son analyse et son historique d’entretien ont été supprimés.', 'success')
+    return redirect(url_for('main.history'))
 
 
 # ── Interview practice ────────────────────────────────────────────────────────
@@ -296,9 +328,12 @@ def analyze_cv(cv_id):
 @main.route('/analysis/<int:analysis_id>/interview', methods=['POST'])
 @login_required
 def answer_interview(analysis_id):
+    wants_json = request.accept_mimetypes.best == 'application/json'
     analysis = db.get_or_404(AIAnalysis, analysis_id)
     cv = analysis.cv
     if cv.user_id != current_user.id:
+        if wants_json:
+            return jsonify(error='Accès non autorisé.'), 403
         flash('Accès non autorisé.', 'danger')
         return redirect(url_for('main.history'))
 
@@ -307,14 +342,20 @@ def answer_interview(analysis_id):
 
     form = InterviewAnswerForm()
     if not form.validate_on_submit():
+        if wants_json:
+            return jsonify(error='Votre réponse doit contenir entre 2 et 4 000 caractères.'), 400
         flash('Votre réponse doit contenir entre 2 et 4 000 caractères.', 'danger')
         return redirect(target_redirect)
 
     history = analysis.interview_history
     if len(history) > 10:
+        if wants_json:
+            return jsonify(error='La simulation a atteint sa limite.'), 409
         flash('La simulation a atteint sa limite. Relancez une analyse pour recommencer.', 'warning')
         return redirect(target_redirect)
     if not history or history[-1].get('answer'):
+        if wants_json:
+            return jsonify(error='Aucune question en attente de réponse.'), 409
         flash('Aucune question en attente de réponse.', 'danger')
         return redirect(target_redirect)
 
@@ -322,6 +363,8 @@ def answer_interview(analysis_id):
     if len(history) == 10:
         analysis.interview_history_json = json.dumps(history, ensure_ascii=False)
         db.session.commit()
+        if wants_json:
+            return jsonify(completed=True, answered_count=len(history))
         flash('Simulation terminée : les 10 réponses ont été enregistrées.', 'success')
         return redirect(target_redirect)
 
@@ -340,12 +383,21 @@ def answer_interview(analysis_id):
         )
     except (AIConfigurationError, AIServiceError, DocumentExtractionError) as error:
         logger.warning('Simulation entretien impossible pour le document %s: %s', cv.id, error)
+        if wants_json:
+            return jsonify(error=str(error)), 503
         flash(str(error), 'danger')
         return redirect(target_redirect)
 
     history.append({'question': question, 'answer': ''})
     analysis.interview_history_json = json.dumps(history, ensure_ascii=False)
     db.session.commit()
+    if wants_json:
+        return jsonify(
+            completed=False,
+            answered_count=len(history) - 1,
+            question_number=len(history),
+            question=question,
+        )
     flash('Réponse enregistrée. Voici la question suivante.', 'success')
     return redirect(target_redirect)
 

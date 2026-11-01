@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  web:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: cvboost:latest
+    container_name: cvboost_web
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: sqlite:////app/instance/cvboost.db
+      UPLOAD_FOLDER: /app/uploads
+      UPLOAD_AUDIT_LOG: /app/instance/upload_audit.jsonl
+      JOB_OFFERS_FILE: /app/data_pipeline/jobs_clean.csv
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.8-flash}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      GROQ_MODEL: ${GROQ_MODEL:-qwen/qwen3.8-27b}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY}
+      MISTRAL_MODEL: ${MISTRAL_MODEL:-mistral-small-latest}
+    ports:
+      - "80:8000"
+    volumes:
+      - cvboost_instance:/app/instance
+      - cvboost_uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: cvboost:latest
+    container_name: cvboost_fastapi
+    command: ["uvicorn", "api_service.main:app", "--host", "0.0.0.0", "--port", "8001"]
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY}
+    ports:
+      - "8001:8001"
+    volumes:
+      - cvboost_audio:/app/api_service/temp_audio
+
+volumes:
+  cvboost_instance:
+  cvboost_uploads:
+  cvboost_audio:

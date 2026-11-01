@@ -265,6 +265,12 @@ img { max-width: 100%; }
 }
 .btn-outline-blue:hover { background: var(--blue); color: #fff; box-shadow: var(--sh-blue); }
 
+.btn-danger {
+  background: #fff; color: var(--red);
+  border: 1.5px solid rgba(239,68,68,.4);
+}
+.btn-danger:hover { background: var(--red); color: #fff; }
+
 .btn-ghost {
   background: #fff; color: var(--tx-body);
   border: 1.5px solid var(--border);

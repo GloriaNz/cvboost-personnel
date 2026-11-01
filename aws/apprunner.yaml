@@ -1,0 +1,25 @@
+version: 1.0
+runtime: python312
+build:
+  commands:
+    build:
+      - pip install --upgrade pip
+      - pip install -r requirements.txt
+run:
+  command: gunicorn --bind=0.0.0.0:8000 --workers=2 --threads=4 --timeout=120 wsgi:app
+  network:
+    port: 8000
+    env: APP_PORT
+  env:
+    - name: SECRET_KEY
+      value: replace-with-a-long-random-secret
+    - name: DATABASE_URL
+      value: sqlite:////app/instance/cvboost.db
+    - name: COOKIE_SECURE
+      value: "true"
+    - name: GEMINI_MODEL
+      value: gemini-1.5-flash
+    - name: GROQ_MODEL
+      value: llama-3.3-70b-versatile
+    - name: MISTRAL_MODEL
+      value: mistral-small-latest

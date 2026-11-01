@@ -334,6 +334,8 @@ function showToast(msg, type = 'info') {
   document.querySelectorAll('.audio-controls').forEach(controls => {
     const form = controls.closest('form');
     const answer = form?.querySelector('textarea[name="answer"]');
+    const voiceStartButton = controls.querySelector('[data-voice-start]');
+    const voiceStopButton = controls.querySelector('[data-voice-stop]');
     const recordButton = controls.querySelector('[data-audio-record]');
     const stopButton = controls.querySelector('[data-audio-stop]');
     const transcribeButton = controls.querySelector('[data-audio-transcribe]');
@@ -344,7 +346,6 @@ function showToast(msg, type = 'info') {
     let stream;
     let chunks = [];
     let recording;
-    let recordingTimer;
     let audioBlob;
 
     function setStatus(message, state = '') {
@@ -352,11 +353,6 @@ function showToast(msg, type = 'info') {
       status.dataset.state = state;
     }
 
-    recordButton.addEventListener('click', async () => {
-      if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
-        setStatus('L’enregistrement audio n’est pas pris en charge par ce navigateur.', 'error');
-        return;
-      }
     // Mode Temps Réel : Web Speech Recognition (Google Chrome / Edge / Safari)
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     let liveRecognition;
@@ -388,7 +384,279 @@ function showToast(msg, type = 'info') {
       };
     }
 
+    let voiceRecognition;
+    let voiceMode = false;
+    let voiceSpeaking = false;
+    let voiceSubmitting = false;
+    let voiceTranscript = '';
+    let silenceTimer;
+    let listenRestartTimer;
+
+    function setVoiceStatus(message, state = '') {
+      if (!status) return;
+      status.textContent = message;
+      status.dataset.state = state;
+    }
+
+    function setVoiceMode(active) {
+      voiceMode = active;
+      if (voiceStartButton) voiceStartButton.hidden = active;
+      if (voiceStopButton) voiceStopButton.hidden = !active;
+      if (recordButton) recordButton.disabled = active;
+      if (transcribeButton) transcribeButton.disabled = active || !audioBlob;
+      const submitButton = form?.querySelector('[type="submit"]');
+      if (submitButton) submitButton.disabled = active;
+    }
+
+    function startVoiceListening() {
+      if (!voiceMode || !voiceRecognition || voiceSpeaking || voiceSubmitting) return;
+      try {
+        voiceRecognition.start();
+        setVoiceStatus('Je vous écoute. Prenez votre temps.');
+      } catch (error) {
+        if (error.name === 'InvalidStateError') {
+          clearTimeout(listenRestartTimer);
+          listenRestartTimer = setTimeout(() => {
+            if (voiceMode && !voiceSpeaking && !voiceSubmitting) startVoiceListening();
+          }, 350);
+        } else {
+          stopVoiceConversation();
+          setVoiceStatus('Impossible de démarrer la reconnaissance vocale. Vérifiez les autorisations du microphone.', 'error');
+          console.error('Interview speech recognition could not start:', error);
+        }
+      }
+    }
+
+    function stopVoiceConversation() {
+      setVoiceMode(false);
+      voiceSpeaking = false;
+      voiceSubmitting = false;
+      clearTimeout(silenceTimer);
+      clearTimeout(listenRestartTimer);
+      window.speechSynthesis?.cancel();
+      if (voiceRecognition) {
+        try { voiceRecognition.stop(); } catch (error) {
+          if (error.name !== 'InvalidStateError') console.warn('Could not stop interview speech recognition:', error);
+        }
+      }
+    }
+
+    function speakInterviewText(text) {
+      return new Promise((resolve, reject) => {
+        if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) {
+          reject(new Error('La synthèse vocale n’est pas prise en charge par ce navigateur.'));
+          return;
+        }
+
+        const utterance = new window.SpeechSynthesisUtterance(text);
+        utterance.lang = 'fr-FR';
+        utterance.rate = 0.9;
+        const frenchVoice = getFrenchVoice();
+        if (frenchVoice) utterance.voice = frenchVoice;
+        utterance.onstart = () => {
+          voiceSpeaking = true;
+          if (voiceRecognition) {
+            try { voiceRecognition.stop(); } catch (error) {
+              if (error.name !== 'InvalidStateError') console.warn('Could not pause speech recognition:', error);
+            }
+          }
+          setVoiceStatus('Sarah vous parle…');
+          window.dispatchEvent(new CustomEvent('speechSynthesisStart'));
+        };
+        utterance.onend = () => {
+          voiceSpeaking = false;
+          window.dispatchEvent(new CustomEvent('speechSynthesisEnd'));
+          resolve();
+        };
+        utterance.onerror = event => {
+          voiceSpeaking = false;
+          window.dispatchEvent(new CustomEvent('speechSynthesisEnd'));
+          reject(new Error(`La lecture vocale a échoué (${event.error}).`));
+        };
+        window.speechSynthesis.speak(utterance);
+      });
+    }
+
+    function appendVoiceExchange(question, response) {
+      const dialogue = document.getElementById('dialogueScroll');
+      const banner = dialogue?.querySelector('.active-question-banner');
+      if (!dialogue || !banner) return;
+
+      for (const [speaker, text, className] of [
+        ['Sarah · Recruteuse', question, 'recruiter-bubble'],
+        ['Vous (Candidat)', response, 'candidate-bubble'],
+      ]) {
+        const bubble = document.createElement('div');
+        bubble.className = `chat-bubble ${className}`;
+        const tag = document.createElement('div');
+        tag.className = 'bubble-tag';
+        tag.textContent = speaker;
+        const message = document.createElement('div');
+        message.className = 'bubble-text';
+        message.textContent = text;
+        bubble.append(tag, message);
+        dialogue.insertBefore(bubble, banner);
+      }
+      dialogue.scrollTop = dialogue.scrollHeight;
+    }
+
+    async function submitVoiceAnswer() {
+      if (!voiceMode || voiceSubmitting || answer.value.trim().length < 2) return;
+      voiceSubmitting = true;
+      clearTimeout(silenceTimer);
+      setVoiceStatus('Merci, Sarah prépare la prochaine question…');
+      try {
+        if (voiceRecognition) voiceRecognition.stop();
+      } catch (error) {
+        if (error.name !== 'InvalidStateError') console.warn('Could not pause interview speech recognition:', error);
+      }
+
+      try {
+        const response = await fetch(form.action, {
+          method: 'POST',
+          body: new FormData(form),
+          headers: { Accept: 'application/json' },
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'La réponse n’a pas pu être enregistrée.');
+
+        const submittedAnswer = answer.value.trim();
+        const activeQuestion = document.getElementById('activeQuestionText')?.textContent?.trim() || '';
+        appendVoiceExchange(activeQuestion, submittedAnswer);
+        const progress = document.querySelector('.room-progress-badge .progress-num');
+        const progressFill = document.querySelector('.room-progress-fill');
+        if (progress) progress.textContent = result.answered_count;
+        if (progressFill) progressFill.style.width = `${result.answered_count * 10}%`;
+
+        if (result.completed) {
+          stopVoiceConversation();
+          const banner = document.querySelector('.active-question-banner');
+          if (banner) {
+            banner.className = 'interview-celebration';
+            banner.textContent = 'Félicitations, simulation terminée ! Vous avez répondu aux 10 questions.';
+          }
+          controls.closest('.answer-interactive-dock')?.remove();
+          setVoiceStatus('Simulation terminée. Bravo !');
+          return;
+        }
+
+        const questionText = document.getElementById('activeQuestionText');
+        const questionNumber = document.querySelector('.badge-question-num');
+        const replayButton = document.getElementById('playActiveBtn');
+        if (questionText) questionText.textContent = result.question;
+        if (questionNumber) questionNumber.textContent = `QUESTION ${result.question_number} / 10`;
+        if (replayButton) replayButton.dataset.question = result.question;
+        answer.value = '';
+        answer.dispatchEvent(new Event('input', { bubbles: true }));
+        voiceTranscript = '';
+        voiceSubmitting = false;
+        if (!voiceMode) {
+          setVoiceStatus('Réponse enregistrée. Reprenez l’entretien vocal quand vous êtes prêt.');
+          return;
+        }
+        await speakInterviewText('Merci pour votre réponse.');
+        await speakInterviewText(result.question);
+        startVoiceListening();
+      } catch (error) {
+        if (!voiceMode) return;
+        stopVoiceConversation();
+        setVoiceStatus(`${error.message} Votre réponse est conservée ; vous pouvez la renvoyer ou reprendre l’entretien vocal.`, 'error');
+      }
+    }
+
+    voiceStartButton?.addEventListener('click', async () => {
+      if (recorder?.state === 'recording') {
+        setVoiceStatus('Arrêtez d’abord l’enregistrement en cours avant de démarrer la conversation vocale.', 'error');
+        return;
+      }
+      if (!SpeechRecognition) {
+        setVoiceStatus('La conversation vocale automatique nécessite Chrome ou Edge. Vous pouvez écrire votre réponse ou utiliser la transcription audio.', 'error');
+        return;
+      }
+      if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) {
+        setVoiceStatus('La synthèse vocale n’est pas prise en charge par ce navigateur. Vous pouvez répondre par écrit.', 'error');
+        return;
+      }
+
+      voiceRecognition = new SpeechRecognition();
+      voiceRecognition.lang = 'fr-FR';
+      voiceRecognition.continuous = true;
+      voiceRecognition.interimResults = true;
+      voiceRecognition.onresult = event => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+        for (let index = event.resultIndex; index < event.results.length; index += 1) {
+          const transcript = event.results[index][0].transcript;
+          if (event.results[index].isFinal) finalTranscript += `${transcript} `;
+          else interimTranscript += transcript;
+        }
+        if (finalTranscript) {
+          voiceTranscript = `${voiceTranscript} ${finalTranscript}`.trim();
+          answer.value = voiceTranscript;
+          answer.dispatchEvent(new Event('input', { bubbles: true }));
+          clearTimeout(silenceTimer);
+          silenceTimer = setTimeout(submitVoiceAnswer, 3000);
+        }
+        if (interimTranscript) setVoiceStatus(`Je vous écoute… « ${interimTranscript} »`);
+        else if (voiceMode && !voiceSubmitting) setVoiceStatus('Je vous écoute. Prenez votre temps.');
+      };
+      voiceRecognition.onerror = event => {
+        console.warn('Interview speech recognition error:', event.error);
+        if (!voiceMode || event.error === 'no-speech' || event.error === 'aborted') return;
+        stopVoiceConversation();
+        setVoiceStatus(
+          event.error === 'not-allowed' || event.error === 'service-not-allowed'
+            ? 'Autorisez le microphone et la reconnaissance vocale dans votre navigateur, puis réessayez.'
+            : 'La reconnaissance vocale est indisponible. Vous pouvez écrire votre réponse ou utiliser la transcription audio.',
+          'error',
+        );
+      };
+      voiceRecognition.onend = () => {
+        if (!voiceMode || voiceSpeaking || voiceSubmitting) return;
+        if (answer.value.trim().length >= 2) {
+          clearTimeout(silenceTimer);
+          silenceTimer = setTimeout(submitVoiceAnswer, 3000);
+        }
+        else {
+          setVoiceStatus('Je vous écoute. Prenez votre temps.');
+          clearTimeout(listenRestartTimer);
+          listenRestartTimer = setTimeout(startVoiceListening, 350);
+        }
+      };
+
+      setVoiceMode(true);
+      voiceTranscript = '';
+      answer.value = '';
+      answer.dispatchEvent(new Event('input', { bubbles: true }));
+      const activeQuestion = document.getElementById('activeQuestionText')?.textContent?.trim();
+      if (!activeQuestion) {
+        stopVoiceConversation();
+        setVoiceStatus('Aucune question en attente dans cette simulation.', 'error');
+        return;
+      }
+
+      try {
+        await speakInterviewText('Bonjour, bienvenue à cet entretien. Je suis Sarah, votre recruteuse. Prenez votre temps pour répondre ; nous allons avancer question par question.');
+        await speakInterviewText(activeQuestion);
+        startVoiceListening();
+      } catch (error) {
+        if (!voiceMode) return;
+        stopVoiceConversation();
+        setVoiceStatus(error.message, 'error');
+      }
+    });
+
+    voiceStopButton?.addEventListener('click', () => {
+      stopVoiceConversation();
+      setVoiceStatus('Entretien vocal en pause. Reprenez quand vous êtes prêt.');
+    });
+
     recordButton.addEventListener('click', async () => {
+      if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+        setStatus('L’enregistrement audio n’est pas pris en charge par ce navigateur.', 'error');
+        return;
+      }
+
       audioBlob = undefined;
       chunks = [];
       recordButton.disabled = true;

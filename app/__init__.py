@@ -26,11 +26,15 @@ def create_app(test_config=None):
             os.path.join(app.instance_path, 'upload_audit.jsonl')
         ),
         GROQ_API_KEY=os.environ.get('GROQ_API_KEY'),
-        GROQ_MODEL=os.environ.get('GROQ_MODEL', 'llama-3.3-70b-versatile'),
+        GROQ_MODEL=os.environ.get('GROQ_MODEL', 'qwen/qwen3.8-27b'),
         GROQ_TRANSCRIPTION_MODEL=os.environ.get(
             'GROQ_TRANSCRIPTION_MODEL',
             'whisper-large-v3-turbo',
         ),
+        GEMINI_API_KEY=os.environ.get('GEMINI_API_KEY'),
+        GEMINI_MODEL=os.environ.get('GEMINI_MODEL', 'gemini-3.8-flash'),
+        MISTRAL_API_KEY=os.environ.get('MISTRAL_API_KEY'),
+        MISTRAL_MODEL=os.environ.get('MISTRAL_MODEL', 'mistral-small-latest'),
         JOB_OFFERS_FILE=os.environ.get(
             'JOB_OFFERS_FILE',
             os.path.join(

@@ -1,5 +1,6 @@
 import json
 import io
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -23,6 +24,9 @@ from app.ia import (
 
 class IAServiceTests(unittest.TestCase):
     def setUp(self):
+        provider_keys = patch.dict(os.environ, {'GEMINI_API_KEY': '', 'MISTRAL_API_KEY': ''})
+        provider_keys.start()
+        self.addCleanup(provider_keys.stop)
         self.temp_directory = tempfile.TemporaryDirectory()
         self.root = Path(self.temp_directory.name)
 
@@ -96,7 +100,7 @@ class IAServiceTests(unittest.TestCase):
         self.assertEqual(prompt_data['job_description'], 'Job description')
         self.assertEqual(
             groq_class.return_value.chat.completions.create.call_args.kwargs['model'],
-            'llama-3.3-70b-versatile',
+            'qwen/qwen3.8-27b',
         )
 
     @patch('app.ia.Groq')

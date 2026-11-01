@@ -56,6 +56,14 @@
               Visualiser
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
             </a>
+            <form method="POST"
+                  action="{{ url_for('main.delete_cv_history', cv_id=cv.id) }}"
+                  onsubmit="return confirm('Supprimer ce CV, son analyse et son historique d’entretien ? Cette action est définitive.');">
+              {{ delete_form.hidden_tag() }}
+              <button type="submit" class="btn btn-danger btn-sm" aria-label="Supprimer {{ cv.filename_original }}">
+                Supprimer
+              </button>
+            </form>
           </div>
         </div>
       {% endfor %}

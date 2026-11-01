@@ -43,9 +43,13 @@ class LogoutForm(FlaskForm):
     submit = SubmitField('Déconnexion')
 
 
+class DeleteCVForm(FlaskForm):
+    pass
+
+
 class MatchForm(FlaskForm):
     job_description = TextAreaField(
-        'Description de l’offre d’emploi',
+        'Description de l’offre d’emploi à cibler',
         validators=[DataRequired(), Length(min=30, max=12000)],
     )
     submit = SubmitField('Analyser mon profil')

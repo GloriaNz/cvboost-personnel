@@ -118,9 +118,15 @@
               
               <!-- Boutons de contrôle micro -->
               <div class="dock-buttons">
+                <button type="button" class="btn btn-primary btn-ripple" data-voice-start>
+                  Démarrer l’entretien vocal
+                </button>
+                <button type="button" class="btn-mic btn-mic-stop" data-voice-stop hidden>
+                  Mettre en pause
+                </button>
                 <button type="button" class="btn-mic btn-mic-record" data-audio-record id="micRecordBtn">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2m-7 9v3m-4 0h8"/></svg>
-                  <span>Parler (Temps Réel)</span>
+                  <span>Enregistrer une réponse</span>
                 </button>
                 
                 <button type="button" class="btn-mic btn-mic-stop" data-audio-stop disabled id="micStopBtn">
@@ -135,7 +141,7 @@
 
               <!-- Indicateur d'état vocal -->
               <div class="dock-status-line">
-                <p class="audio-status" data-audio-status role="status" aria-live="polite">Cliquez sur « Parler » pour dicter directement votre réponse à Sarah.</p>
+                <p class="audio-status" data-audio-status role="status" aria-live="polite">Démarrez l’entretien vocal pour entendre Sarah, puis répondez à voix haute. Vous pouvez aussi écrire votre réponse.</p>
               </div>
             </div>
 

@@ -1,4 +1,4 @@
-name: CI/CD Pipeline CVBoost Azure
+name: CI/CD Pipeline CVBoost AWS
 
 on:
   push:
@@ -33,8 +33,8 @@ jobs:
         run: |
           python -m unittest discover tests
 
-  build-and-deploy:
-    name: Build Docker Image & Deploy to Azure
+  build-and-deploy-aws:
+    name: Build Docker Image & Deploy to AWS (ECR / App Runner / ECS)
     needs: test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -42,31 +42,51 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Log in to Azure Container Registry (ACR)
-        uses: azure/docker-login@v2
-        if: env.ACR_LOGIN_SERVER != ''
+      - name: Configure AWS Credentials
+        if: env.AWS_ACCESS_KEY_ID != ''
+        uses: aws-actions/configure-aws-credentials@v4
         env:
-          ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         with:
-          login-server: ${{ secrets.ACR_LOGIN_SERVER }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'eu-west-3' }}
 
-      - name: Build and push Docker image
-        if: env.ACR_LOGIN_SERVER != ''
+      - name: Log in to Amazon Elastic Container Registry (ECR)
+        if: env.AWS_ACCESS_KEY_ID != ''
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
         env:
-          ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+
+      - name: Build, tag, and push Docker image to Amazon ECR
+        if: env.AWS_ACCESS_KEY_ID != '' && env.ECR_REPOSITORY != ''
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
-          IMAGE_TAG=${{ github.sha }}
-          docker build -t $ACR_LOGIN_SERVER/cvboost:$IMAGE_TAG -t $ACR_LOGIN_SERVER/cvboost:latest .
-          docker push $ACR_LOGIN_SERVER/cvboost:$IMAGE_TAG
-          docker push $ACR_LOGIN_SERVER/cvboost:latest
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
-      - name: Deploy to Azure Web App for Containers
-        uses: azure/webapps-deploy@v3
-        if: env.AZURE_WEBAPP_NAME != ''
+      # Déploiement automatique sur AWS App Runner (PaaS Managé) si configuré
+      - name: Deploy to AWS App Runner
+        if: env.AWS_APP_RUNNER_ARN != ''
         env:
-          AZURE_WEBAPP_NAME: ${{ secrets.AZURE_WEBAPP_NAME }}
-        with:
-          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
-          images: ${{ secrets.ACR_LOGIN_SERVER }}/cvboost:${{ github.sha }}
+          AWS_APP_RUNNER_ARN: ${{ secrets.AWS_APP_RUNNER_ARN }}
+        run: |
+          aws apprunner start-deployment --service-arn ${{ secrets.AWS_APP_RUNNER_ARN }}
+
+      # Déploiement alternatif sur AWS ECS Fargate si configuré
+      - name: Deploy to AWS ECS Fargate
+        if: env.AWS_ECS_CLUSTER != '' && env.AWS_ECS_SERVICE != ''
+        env:
+          AWS_ECS_CLUSTER: ${{ secrets.AWS_ECS_CLUSTER }}
+          AWS_ECS_SERVICE: ${{ secrets.AWS_ECS_SERVICE }}
+        run: |
+          aws ecs update-service \
+            --cluster ${{ secrets.AWS_ECS_CLUSTER }} \
+            --service ${{ secrets.AWS_ECS_SERVICE }} \
+            --force-new-deployment

@@ -139,6 +139,7 @@ Fonctionnalités :
 * Liste des CV téléchargés par l'utilisateur connecté
 * Affichage de la date d'upload et du nom du fichier
 * Statut du CV et de son analyse (ex : "En attente", "Analyse terminée")
+* Suppression d'un CV depuis l'historique, avec son fichier, son analyse et sa simulation d'entretien
 
 ---
 
@@ -150,7 +151,12 @@ Choisissez un CV déjà téléversé. Pour démarrer une simulation, ouvrez son
 analyse, collez une offre d’emploi d’au moins 30 caractères et lancez
 « Analyser mon profil ». La première question apparaît ensuite dans la section
 « Simulation d’entretien » ; répondez pour obtenir les questions suivantes.
-Les erreurs Groq indiquent si la clé, le quota ou le modèle doit être vérifié.
+Dans la salle, cliquez sur « Démarrer l’entretien vocal » : Sarah vous salue,
+lit la première question, écoute votre réponse en français puis enchaîne avec la
+question suivante après une courte pause. Le mode vocal nécessite un navigateur
+compatible (Chrome ou Edge), l’autorisation du microphone et une connexion
+sécurisée (HTTPS ou localhost). La réponse écrite reste disponible. Les erreurs
+Groq indiquent si la clé, le quota ou le modèle doit être vérifié.
 
 ---
 
@@ -289,72 +295,36 @@ préremplir et lancer l'analyse IA. Le fichier peut être déplacé avec
 `JOB_OFFERS_FILE` dans `.env`. Les descriptions absentes ou trop longues sont
 signalées et ne sont pas envoyées à l'analyse.
 
-### Sprint 3 — Assistant DRH et moteur NLP
+### Sprint 3 — Assistant DRH Multi-Fournisseurs (Gemini → Groq → Mistral)
 
-L'analyse d'un CV est déclenchée depuis sa page de résultat : collez l'offre,
-lancez l'analyse. Les fichiers PDF/DOCX sont extraits localement avant
-l'appel au modèle `llama-3.3-70b-versatile`. Le résultat comprend un résumé,
-un score indicatif sur 100, des points forts, des compétences à vérifier et la
-première question d'une simulation d'entretien. Les réponses peuvent être suivies par
-jusqu'à 10 questions. Le score est une aide explicable, jamais une décision
-d'embauche/rejet ; l'analyse ne doit utiliser que les compétences et expériences.
-Chaque point fort doit maintenant être accompagné d'une citation exacte du CV,
-vérifiée localement avant affichage ; une réponse du modèle dont la preuve ne
-figure pas dans le document est rejetée.
-La simulation d'entretien propose aussi la lecture audio des questions via la
-synthèse vocale du navigateur et la dictée des réponses via Groq. La transcription
-est présentée dans le champ de réponse pour être relue et corrigée avant envoi.
-Les enregistrements ne sont pas stockés par CVBoost ; l'audio est transmis à
-Groq pour transcription. La lecture audio des questions ne transmet pas leur
-texte à un fournisseur externe. La dictée nécessite l'accès au microphone et
-une clé API configurée.
-Le navigateur doit autoriser l'accès au microphone ; hors de `localhost`,
-l'enregistrement nécessite une connexion HTTPS.
+L'analyse d'un CV est déclenchée depuis sa page de diagnostic. Les fichiers PDF/DOCX sont extraits localement avant l'appel aux LLM.
 
-Configurez une clé Groq dans `.env` pour activer l'analyse et la transcription :
+#### 🛡️ Haute Disponibilité Multi-Fournisseurs (Fallback Automatique)
+Pour garantir une disponibilité ininterrompue en production et pallier l'épuisement des quotas gratuits de chaque fournisseur d'IA, l'application orchestre automatiquement les requêtes selon la chaîne prioritaire suivante :
+
+1. **Google Gemini (Priorité 1)** : modèle `gemini-3.8-flash` rapide et performant.
+2. **Groq (Priorité 2)** : modèle `qwen/qwen3.8-27b`, activé automatiquement si Gemini est indisponible ou atteint son quota.
+3. **Mistral AI (Priorité 3)** : modèle `mistral-small-latest`, activé automatiquement si les quotas Gemini et Groq sont dépassés.
+
+Si un fournisseur rencontre une limite de jetons ou de requêtes, l'orchestrateur bascule instantanément vers le fournisseur suivant de manière transparente pour l'utilisateur.
 
 ```dotenv
-GROQ_API_KEY=your-key
-GROQ_MODEL=llama-3.3-70b-versatile
+# Configuration des 3 Fournisseurs dans .env
+GEMINI_API_KEY=AIzaSy...
+GEMINI_MODEL=gemini-3.8-flash
+
+GROQ_API_KEY=gsk_...
+GROQ_MODEL=qwen/qwen3.8-27b
 GROQ_TRANSCRIPTION_MODEL=whisper-large-v3-turbo
+
+MISTRAL_API_KEY=...
+MISTRAL_MODEL=mistral-small-latest
 ```
 
-Ne partagez pas cette clé et n'envoyez pas de CV réels à un fournisseur externe
-sans consentement approprié. Les appels Groq peuvent être soumis à des limites
-ou à des frais selon votre compte. Le texte du CV et de l'offre est transmis au
-fournisseur.
-
-Pour tester l'application sans clé, les pages web et les fonctions locales
-restent accessibles ; l'analyse affiche alors un message indiquant que
-`GROQ_API_KEY` manque. Ajoutez la valeur uniquement dans votre `.env` local
-quand vous êtes prêt à tester les appels réels.
-
-La préparation de données d'entraînement est indépendante de l'Assistant DRH.
-Elle accepte un fichier JSONL avec un exemple par ligne, sous la forme
-`{"prompt":"...","completion":"..."}`. Les exemples exacts sont dédupliqués par
-SHA-256 et les exemples partageant un prompt ou une réponse sont regroupés dans
-la même partition afin d'éviter les fuites train/validation/test.
-
-```powershell
-python -m ai_engine.prepare_dataset --input chemin\vers\exemples.jsonl
-```
-
-Le fine-tuning LoRA est facultatif et nécessite un dataset d'entraînement licencié,
-un téléchargement de modèle et suffisamment de mémoire (GPU recommandé). Les
-dépendances lourdes ne sont pas requises pour lancer le site. Avant de les charger,
-les scripts vérifient que chaque partition JSONL est présente, non vide et contient
-des champs `prompt` et `completion` valides :
-
-```powershell
-python -m pip install -r requirements-training.txt
-python -m ai_engine.train_lora
-python -m ai_engine.evaluate_model --adapter ai_engine\models\cvboost-lora
-```
-
-Le script d'entraînement utilise un modèle causal compatible LoRA avec `q_proj`
-et `v_proj`. Si ces noms diffèrent pour le modèle choisi, fournissez
-`--target-modules`. L'évaluation SacreBLEU porte sur le jeu de test isolé ;
-elle complète, mais ne remplace pas, une revue qualitative des sorties.
+#### 🎙️ Séparation Claire : Diagnostic CV vs Salle d'Entretien Dédiée
+Pour offrir une expérience utilisateur professionnelle, claire et aérée :
+- **Page Diagnostic CV (`/result/<cv_id>`)** : se concentre exclusivement sur le bilan de compétences, le score de compatibilité calculé par l'IA, les points forts prouvés par le CV, les écarts professionnels et les offres d'emploi ciblées.
+- **Salle d'Entretien Dédiée (`/interview/<analysis_id>`)** : plateau immersif d'entraînement avec Sarah, la recruteuse IA, ondes sonores interactives, synthèse vocale des questions, et reconnaissance vocale temps réel au micro.
 
 ### 📓 Notebook Fine-Tuning Colab (Sprint 3)
 Le notebook de fine-tuning exécuté sur Google Colab est archivé dans [`ai_engine/sprint3_colab.ipynb`](file:///c:/Users/utilisitateur/OneDrive/Documents/26-01-kd-dev-ia-midi-c-mon-thu-kin-projet-capstone-final-cvb-glorianz/ai_engine/sprint3_colab.ipynb).
@@ -366,15 +336,15 @@ Il détaille :
 
 ---
 
-# 🚀 Sprint 4 : API Multimodale, Synthèse Vocale & Déploiement Azure
+# 🚀 Sprint 4 : API Multimodale, Synthèse Vocale & Déploiement AWS
 
 ### 1. Orchestrateur FastAPI (`/speak-smart`)
-L'orchestrateur multimodal combine l'analyse textuelle et la synthèse vocale :
-- **Étape 1 : Reformulation LLM** via Groq (`api_service/services/llm_reformulator.py`) générant un pitch percutant et fluide à la 1ère personne (~30s).
+L'orchestrateur multimodal combine la reformulation intelligente et la synthèse vocale :
+- **Étape 1 : Reformulation LLM** avec fallback multi-providers (Gemini → Groq → Mistral) via `api_service/services/llm_reformulator.py`, générant un pitch fluide à la 1ère personne (~30s).
 - **Étape 2 : Synthèse vocale TTS** (`api_service/services/tts_engine.py`) produisant un fichier audio `.wav` haute fidélité.
-- **Métriques audio MLOps journalisées** : MOS estimé (~4.15), WER cible (< 5.2%), CER cible (< 2.1%).
+- **Métriques audio MLOps journalisées** : MOS estimé (4.15 / 5.0), WER cible (< 5.2%), CER cible (< 2.1%).
 
-Pour démarrer l'API localement :
+Démarrer l'API localement :
 ```powershell
 uvicorn api_service.main:app --host 0.0.0.0 --port 8001 --reload
 ```
@@ -395,8 +365,13 @@ docker-compose up --build
 - **Orchestrateur Vocal (FastAPI)** : accessible sur `http://localhost:8001`
 - **Volumes persistants** : `cvboost_instance`, `cvboost_uploads`, `cvboost_audio`.
 
-### 3. Pipeline CI/CD GitHub Actions & Déploiement Azure
+### 3. Pipeline CI/CD GitHub Actions & Déploiement AWS
 Le workflow automatisé se trouve dans `.github/workflows/deploy.yml` :
-1. **Tests automatiques** : Découverte et exécution automatique de la suite complète de tests unitaires (58 tests passés avec succès).
-2. **Build Docker & Push** : Construction automatique de l'image Docker tagged vers Azure Container Registry (ACR).
-3. **Déploiement Continu** : Déploiement direct sans interruption sur Azure App Service for Containers.
+1. **Tests automatiques** : Découverte et exécution automatique de la suite complète de 62 tests unitaires et d'intégration.
+2. **Build Docker & Push vers Amazon ECR** : Construction de l'image Docker tagged vers Amazon Elastic Container Registry.
+3. **Déploiement Continu AWS** :
+   - Déploiement managé Serverless sur **AWS App Runner** (`aws apprunner start-deployment`).
+   - Déploiement conteneurisé sur **AWS ECS Fargate** (`aws ecs update-service`).
+   - Déploiement sur une instance **AWS EC2** via script `aws/deploy-ec2.sh`.
+
+Consultez le guide complet pas-à-pas : [AWS_DEPLOYMENT_GUIDE.md](file:///c:/Users/utilisitateur/OneDrive/Documents/26-01-kd-dev-ia-midi-c-mon-thu-kin-projet-capstone-final-cvb-glorianz/AWS_DEPLOYMENT_GUIDE.md).
