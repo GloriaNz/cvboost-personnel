@@ -24,12 +24,24 @@ echo "📁 [3/5] Préparation de l'environnement CVBoost..."
 if [ ! -f .env ]; then
     echo "⚠️ Fichier .env non détecté. Copie depuis .env.example..."
     cp .env.example .env
-    echo "❗ Veuillez éditer le fichier .env pour renseigner vos clés GEMINI_API_KEY, GROQ_API_KEY et MISTRAL_API_KEY."
+    echo "❗ Configurez DOMAIN et SECRET_KEY dans .env, puis relancez ce script."
+    exit 1
+fi
+
+if ! grep -Eq '^DOMAIN=[A-Za-z0-9.-]+\.duckdns\.org$' .env; then
+    echo "❌ DOMAIN doit contenir votre nom d'hôte DuckDNS dans .env."
+    exit 1
+fi
+
+if ! grep -Eq '^SECRET_KEY=.{32,}$' .env || grep -q '^SECRET_KEY=replace-' .env; then
+    echo "❌ Définissez une SECRET_KEY aléatoire d'au moins 32 caractères dans .env."
+    exit 1
 fi
 
 echo "🏗️ [4/5] Construction et lancement des conteneurs via Docker Compose..."
-docker-compose -f aws/docker-compose.aws.yml up -d --build
+sudo docker-compose -f aws/docker-compose.aws.yml up -d --build
 
 echo "✅ [5/5] CVBoost est déployé et opérationnel sur AWS !"
-echo "🌐 Application Flask : http://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 || echo 'VOTRE_IP_EC2')"
-echo "⚡ FastAPI /speak-smart : http://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 || echo 'VOTRE_IP_EC2'):8001/docs"
+DOMAIN="$(grep '^DOMAIN=' .env | cut -d= -f2-)"
+echo "🌐 Application HTTPS : https://${DOMAIN}"
+echo "ℹ️ L'API FastAPI n'est pas exposée sur Internet."

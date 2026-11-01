@@ -1,5 +1,9 @@
 # Guide de Déploiement Cloud Industriel CVBoost sur AWS
 
+> **Obsolète :** CVBoost est maintenant hébergé sur Render. Ce document est
+> conservé comme historique ; suivez le
+> [guide de déploiement Render](./RENDER_DEPLOYMENT_GUIDE.md).
+
 Ce guide détaille pas-à-pas la mise en production de **CVBoost** sur **Amazon Web Services (AWS)** en remplacement d'Azure, avec prise en charge de la haute disponibilité multi-modèles (**Gemini → Groq → Mistral**) et de l'architecture hybride Flask + FastAPI.
 
 ---
@@ -96,14 +100,23 @@ JOB_OFFERS_FILE=/app/data_pipeline/jobs_clean.csv
 
 ## 4. Option B : Déploiement sur Instance AWS EC2 (Docker Compose)
 
-Idéal pour un contrôle total avec un coût minimal (éligible au Free Tier AWS avec `t3.micro` ou `t3.small`).
+Pour une démonstration de deux semaines, une petite instance EC2 évite les services managés dont le coût est plus difficile à prévoir. Les crédits AWS couvrent les coûts admissibles, mais ce n'est pas gratuit sans limite ; une alerte de budget ne coupe pas automatiquement les ressources.
 
 ### Étape 1 : Créer l'instance EC2
-- AMI : **Ubuntu 24.04 LTS** ou **Amazon Linux 2023**
-- Type : `t3.small` (ou `t3.medium` pour plus d'aisance lors de la synthèse vocale)
-- Security Group : Ouvrir les ports `22` (SSH), `80` (HTTP), `443` (HTTPS) et optionnellement `8001` (FastAPI).
+- AMI : **Ubuntu 24.04 LTS**
+- Type : `t3.small` pour le site Flask seul ; prévoir plus de mémoire si l'API audio est activée.
+- Région : **Europe (Paris), `eu-west-3`**.
+- Security Group : SSH (`22`) depuis **My IP** uniquement ; HTTP (`80`) et HTTPS (`443`) depuis Internet pour DuckDNS et Caddy. Ne pas ouvrir `8000` ni `8001`.
+- Pour environ deux semaines d'exécution continue, prévoir à titre indicatif **10 à 13 USD** pour une `t3.small`, 20 Go gp3 et une IPv4 publique. Le total réel dépend des tarifs de la région, des taxes et du trafic. Vérifier le récapitulatif AWS avant de lancer.
 
-### Étape 2 : Connexion SSH et déploiement one-click
+### Étape 2 : Configurer une URL HTTPS DuckDNS
+1. Créez un sous-domaine gratuit sur [DuckDNS](https://www.duckdns.org/).
+2. Dans DuckDNS, faites pointer le sous-domaine vers l'adresse IPv4 publique de l'instance.
+3. Gardez l'instance en marche pendant la démo : son adresse IPv4 publique peut changer après un arrêt/redémarrage.
+
+Le fichier `aws/Caddyfile` active automatiquement HTTPS avec Let's Encrypt. Le navigateur communique avec Caddy en HTTPS ; Flask reste uniquement accessible sur le réseau Docker. Le port `8001` de l'API n'est pas publié.
+
+### Étape 3 : Connexion SSH et déploiement
 Connectez-vous à votre instance EC2 :
 ```bash
 ssh -i "votre-cle.pem" ubuntu@votre-ip-ec2.compute.amazonaws.com
@@ -116,16 +129,20 @@ cd cvboost_enterprise
 
 # Configuration de votre environnement
 cp .env.example .env
-nano .env   # Renseignez vos clés API Gemini, Groq, Mistral
+# Générez une clé aléatoire à copier dans SECRET_KEY :
+python3 -c 'import secrets; print(secrets.token_hex(32))'
+nano .env   # Configurez DOMAIN, SECRET_KEY et les clés API nécessaires
 
 # Exécution du script d'installation et de démarrage
 chmod +x aws/deploy-ec2.sh
 ./aws/deploy-ec2.sh
 ```
 
-Vos services démarrent en conteneurs isolés :
-- Interface Web Flask : `http://<VOTRE_IP_EC2>`
-- API Multimodale /speak-smart : `http://<VOTRE_IP_EC2>:8001/docs`
+Générez une `SECRET_KEY` aléatoire d'au moins 32 caractères, remplacez `DOMAIN` par votre sous-domaine DuckDNS (par exemple `cvboost-demo.duckdns.org`) et renseignez les clés des fournisseurs IA. L'application sera disponible à `https://<votre-sous-domaine>.duckdns.org` après l'obtention du certificat.
+
+Le service FastAPI audio est facultatif et ne démarre pas par défaut ; le site Flask et l'entretien vocal du navigateur fonctionnent sans lui.
+
+Pour une démonstration de deux semaines, terminez l'instance après usage. Vérifiez également la suppression du volume EBS si les CV et la base ne doivent pas être conservés ; l'arrêt de l'instance ne supprime pas automatiquement les ressources de stockage.
 
 ---
 

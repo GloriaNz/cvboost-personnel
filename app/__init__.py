@@ -4,6 +4,7 @@ from flask import Flask, jsonify, request
 from flask_login import current_user
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 db = SQLAlchemy()
 login_manager = LoginManager()
@@ -52,11 +53,14 @@ def create_app(test_config=None):
         SESSION_COOKIE_SECURE=os.environ.get('COOKIE_SECURE', '').lower() == 'true',
         REMEMBER_COOKIE_HTTPONLY=True,
         REMEMBER_COOKIE_SECURE=os.environ.get('COOKIE_SECURE', '').lower() == 'true',
+        TRUST_PROXY=os.environ.get('TRUST_PROXY', '').lower() == 'true',
     )
     if test_config:
         app.config.update(test_config)
     if not app.config.get('SECRET_KEY') or app.config['SECRET_KEY'].startswith('replace-'):
         raise RuntimeError('SECRET_KEY doit être défini dans l’environnement ou dans le fichier .env.')
+    if app.config['TRUST_PROXY']:
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     # Initialize extensions
     db.init_app(app)

@@ -4,7 +4,9 @@ import os
 import unittest
 import tempfile
 from werkzeug.datastructures import FileStorage
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.test import EnvironBuilder, stream_encode_multipart
+from flask import request
 
 from werkzeug.security import generate_password_hash
 
@@ -45,6 +47,34 @@ class SecurityTests(unittest.TestCase):
         self.assertEqual(self.app.config['MAX_UPLOAD_SIZE'], 5 * 1024 * 1024)
         self.assertLessEqual(self.app.config['MAX_CONTENT_LENGTH'], 6 * 1024 * 1024)
         self.assertEqual(self.app.config['ALLOWED_EXTENSIONS'], {'pdf', 'docx'})
+
+    def test_proxy_headers_are_trusted_only_when_configured(self):
+        self.assertNotIsInstance(self.app.wsgi_app, ProxyFix)
+
+        proxied_app = create_app({
+            'TESTING': True,
+            'SECRET_KEY': 'test-secret-key',
+            'SQLALCHEMY_DATABASE_URI': 'sqlite://',
+            'WTF_CSRF_ENABLED': False,
+            'UPLOAD_FOLDER': os.path.join(self.temp_directory.name, 'proxy-files'),
+            'UPLOAD_AUDIT_LOG': os.path.join(
+                self.temp_directory.name,
+                'proxy-audit',
+                'uploads.jsonl',
+            ),
+            'TRUST_PROXY': True,
+        })
+        self.assertIsInstance(proxied_app.wsgi_app, ProxyFix)
+
+        @proxied_app.get('/_test/request-scheme')
+        def request_scheme():
+            return request.scheme
+
+        response = proxied_app.test_client().get(
+            '/_test/request-scheme',
+            headers={'X-Forwarded-Proto': 'https'},
+        )
+        self.assertEqual(response.get_data(as_text=True), 'https')
 
     def test_auth_forms_use_gloria_nziengi_examples(self):
         login_page = self.client.get('/login')

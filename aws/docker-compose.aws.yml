@@ -15,15 +15,16 @@ services:
       UPLOAD_FOLDER: /app/uploads
       UPLOAD_AUDIT_LOG: /app/instance/upload_audit.jsonl
       JOB_OFFERS_FILE: /app/data_pipeline/jobs_clean.csv
-      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      COOKIE_SECURE: "true"
+      TRUST_PROXY: "true"
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.8-flash}
       GROQ_API_KEY: ${GROQ_API_KEY}
       GROQ_MODEL: ${GROQ_MODEL:-qwen/qwen3.8-27b}
       MISTRAL_API_KEY: ${MISTRAL_API_KEY}
       MISTRAL_MODEL: ${MISTRAL_MODEL:-mistral-small-latest}
-    ports:
-      - "80:8000"
+    expose:
+      - "8000"
     volumes:
       - cvboost_instance:/app/instance
       - cvboost_uploads:/app/uploads
@@ -34,7 +35,25 @@ services:
       retries: 3
       start_period: 20s
 
+  caddy:
+    image: caddy:2-alpine
+    container_name: cvboost_caddy
+    restart: unless-stopped
+    environment:
+      DOMAIN: "${DOMAIN:?Set DOMAIN in the root .env file}"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
   api:
+    profiles:
+      - audio-api
     build:
       context: ..
       dockerfile: Dockerfile
@@ -48,8 +67,6 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       GROQ_API_KEY: ${GROQ_API_KEY}
       MISTRAL_API_KEY: ${MISTRAL_API_KEY}
-    ports:
-      - "8001:8001"
     volumes:
       - cvboost_audio:/app/api_service/temp_audio
 
@@ -57,3 +74,5 @@ volumes:
   cvboost_instance:
   cvboost_uploads:
   cvboost_audio:
+  caddy_data:
+  caddy_config:
