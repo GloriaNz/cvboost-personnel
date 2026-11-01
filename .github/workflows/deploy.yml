@@ -28,7 +28,7 @@ jobs:
       - name: Run test suite
         env:
           SECRET_KEY: test-secret-key-ci
-          DATABASE_URL: sqlite:///:memory:
+          DATABASE_URL: "sqlite:///:memory:"
           COOKIE_SECURE: "false"
         run: |
           python -m unittest discover tests
