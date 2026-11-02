@@ -347,6 +347,7 @@ function showToast(msg, type = 'info') {
     let chunks = [];
     let recording;
     let audioBlob;
+    let recordingRequestId = 0;
 
     function setStatus(message, state = '') {
       status.textContent = message;
@@ -659,13 +660,23 @@ function showToast(msg, type = 'info') {
 
       audioBlob = undefined;
       chunks = [];
+      const requestId = ++recordingRequestId;
+      recorder = undefined;
       recordButton.disabled = true;
+      stopButton.disabled = false;
       setStatus('Démarrage du microphone…');
       try {
-        if (liveRecognition) {
-          try { liveRecognition.start(); } catch (_) {}
+        const mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (requestId !== recordingRequestId) {
+          mediaStream.getTracks().forEach(track => track.stop());
+          return;
         }
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream = mediaStream;
+        if (liveRecognition) {
+          try { liveRecognition.start(); } catch (error) {
+            console.warn('Live speech recognition could not start:', error);
+          }
+        }
         const mimeType = [
           'audio/webm;codecs=opus',
           'audio/webm',
@@ -700,8 +711,10 @@ function showToast(msg, type = 'info') {
         transcribeButton.disabled = true;
         setStatus('🎙️ Parlez maintenant, votre voix est retranscrite en direct…');
       } catch (error) {
+        if (requestId !== recordingRequestId) return;
         if (stream) stream.getTracks().forEach(track => track.stop());
         stream = undefined;
+        stopButton.disabled = true;
         recordButton.disabled = false;
         setStatus('Impossible d’accéder au microphone. Vérifiez les autorisations du navigateur.', 'error');
         console.error('Microphone unavailable:', error);
@@ -709,6 +722,13 @@ function showToast(msg, type = 'info') {
     });
 
     stopButton.addEventListener('click', () => {
+      if (recorder?.state !== 'recording' && recordButton.disabled) {
+        recordingRequestId += 1;
+        stopButton.disabled = true;
+        recordButton.disabled = false;
+        setStatus('Demande d’accès au microphone annulée.');
+        return;
+      }
       if (recording) clearTimeout(recording);
       recording = undefined;
       if (recorder?.state === 'recording') recorder.stop();
