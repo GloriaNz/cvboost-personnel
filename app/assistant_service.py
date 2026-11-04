@@ -59,11 +59,11 @@ def generate_reply(messages, api_key, model):
                 'Le modèle Groq configuré est introuvable. Vérifiez GROQ_MODEL.'
             ) from error
         raise AssistantServiceError(
-            'CVBoost AI ne peut pas joindre Groq pour le moment. Réessayez plus tard.'
+            'CVBoostBot ne peut pas joindre Groq pour le moment. Réessayez plus tard.'
         ) from error
 
     if not isinstance(content, str) or not content.strip():
-        raise AssistantServiceError('CVBoost AI a reçu une réponse vide. Réessayez.')
+        raise AssistantServiceError('CVBoostBot a reçu une réponse vide. Réessayez.')
     return content.strip()
 
 

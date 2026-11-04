@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}CVBoost AI – Assistant carrière{% endblock %}
+{% block title %}CVBoostBot – Assistant carrière{% endblock %}
 {% block content %}
 <section
   class="page-section assistant-page"
@@ -12,11 +12,23 @@
 >
   <header class="page-hd assistant-page-header">
     <div>
-      <h1>CVBoost AI</h1>
-      <p>Votre assistant pour le CV, les candidatures et l’évolution professionnelle.</p>
+      <h1>CVBoostBot</h1>
+      <p>Posez une question de carrière et cliquez sur « Envoyer » pour recevoir une réponse.</p>
     </div>
     <button class="btn btn-primary" type="button" id="assistantNewConversation">Nouvelle conversation</button>
   </header>
+
+  {% if not assistant_ready %}
+    <p class="form-error assistant-config-warning" role="alert">
+      CVBoostBot n’est pas configuré : ajoutez votre clé <code>GROQ_API_KEY</code> au fichier <code>.env</code>, puis redémarrez l’application.
+    </p>
+  {% endif %}
+
+  <p class="assistant-how-to">
+    <strong>Pour une réponse générale :</strong> écrivez votre question en bas, puis cliquez sur « Envoyer ».
+    <strong>Pour une réponse basée sur votre CV :</strong> ajoutez d’abord votre CV avec « Uploader », démarrez une nouvelle conversation,
+    cochez le partage du CV, puis sélectionnez le document. Le CV n’est partagé qu’avec votre accord.
+  </p>
 
   <div class="assistant-layout">
     <aside class="assistant-sidebar" aria-label="Historique des conversations">
@@ -34,7 +46,7 @@
       </div>
     </aside>
 
-    <section class="assistant-chat" aria-label="Conversation avec CVBoost AI">
+    <section class="assistant-chat" aria-label="Conversation avec CVBoostBot">
       <div class="assistant-settings">
         <label for="assistantLanguage">Langue</label>
         <select id="assistantLanguage" class="form-control">
@@ -43,7 +55,7 @@
         </select>
         <label class="assistant-context-toggle">
           <input type="checkbox" id="assistantUseContext">
-          Partager mon profil (nom et prénom) et mon CV dans cette conversation
+          J’autorise le partage de mon profil et de mon CV dans cette conversation
         </label>
         <select id="assistantCv" class="form-control" aria-label="Choisir le CV">
           <option value="">Choisir un CV</option>
@@ -51,6 +63,9 @@
             <option value="{{ cv.id }}">{{ cv.filename_original }}</option>
           {% endfor %}
         </select>
+        {% if not cvs %}
+          <a class="assistant-upload-hint" href="{{ url_for('main.upload') }}">Aucun CV disponible — importer un CV</a>
+        {% endif %}
         <label class="assistant-context-toggle">
           <input type="checkbox" id="assistantAutoSpeak">
           Lire automatiquement les réponses
@@ -61,7 +76,7 @@
       </div>
 
       <div class="assistant-messages" id="assistantMessages" aria-live="polite">
-        <p class="assistant-welcome">Choisissez une langue, puis démarrez une conversation avec CVBoost AI.</p>
+        <p class="assistant-welcome">Votre réponse apparaîtra ici. Posez une question ci-dessous pour commencer.</p>
       </div>
 
       <p class="assistant-status" id="assistantStatus" role="status" aria-live="polite"></p>
@@ -72,7 +87,7 @@
           rows="3"
           maxlength="4000"
           placeholder="Écrivez votre question…"
-          aria-label="Votre message à CVBoost AI"
+          aria-label="Votre message à CVBoostBot"
           required
         ></textarea>
         <div class="assistant-compose-actions">

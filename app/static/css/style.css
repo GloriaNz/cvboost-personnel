@@ -1285,6 +1285,14 @@ img { max-width: 100%; }
   display: flex; align-items: center; justify-content: space-between;
   gap: 20px; margin-bottom: 22px;
 }
+.assistant-how-to {
+  margin: 0 0 18px; padding: 14px 18px; border: 1px solid #bfdbfe;
+  border-radius: var(--r-md); background: #eff6ff; color: var(--tx-body);
+  font-size: .88rem; line-height: 1.55;
+}
+.assistant-how-to strong { color: var(--tx-head); }
+.assistant-config-warning { margin: 0 0 18px; }
+.assistant-upload-hint { color: var(--blue-dark); font-size: .82rem; font-weight: 600; }
 .assistant-layout {
   display: grid; grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
   min-height: 620px; border: 1px solid var(--border); border-radius: var(--r-lg);

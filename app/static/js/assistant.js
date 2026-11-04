@@ -26,13 +26,20 @@
 
   async function requestJson(url, options = {}) {
     const response = await fetch(url, options);
+    if (!response.headers.get('content-type')?.includes('application/json')) {
+      throw new Error(
+        response.ok
+          ? 'Le serveur a renvoyé une réponse illisible. Rechargez la page et réessayez.'
+          : `La requête a échoué (erreur ${response.status}). Rechargez la page et réessayez.`,
+      );
+    }
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'La demande a échoué. Réessayez.');
     return result;
   }
 
   function conversationEndpoint(template, id) {
-    return template.replace(/\/1$/, `/${id}`);
+    return template.replace(/(\/conversations\/)\d+(?=\/|$)/, `$1${id}`);
   }
 
   function setStatus(message, isError = false) {
@@ -40,20 +47,51 @@
     status.dataset.state = isError ? 'error' : '';
   }
 
+  function cleanAssistantText(text) {
+    return String(text)
+      .replace(/\r\n?/g, '\n')
+      .replace(/```[^\n]*\n?([\s\S]*?)```/g, '$1')
+      .replace(/```[^\n]*$/gm, '')
+      .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+      .replace(/^\s{0,3}>\s?/gm, '')
+      .replace(/^\s*(?:[-*+]|\d+[.)])\s+/gm, '')
+      .replace(/^\s*(?:[-*_]\s*){3,}$/gm, '')
+      .replace(/(\*\*|__)([\s\S]*?)\1/g, '$2')
+      .replace(/~~([\s\S]*?)~~/g, '$1')
+      .replace(/`([^`\n]+)`/g, '$1')
+      .replace(/(^|[\s(])\*([^*\n]+)\*(?=$|[\s).,!?:;])/gm, '$1$2')
+      .replace(/(^|[\s(])_([^_\n]+)_(?=$|[\s).,!?:;])/gm, '$1$2')
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
+  function assistantSpeechText(text) {
+    return cleanAssistantText(
+      String(text)
+        .replace(/```[\s\S]*?```/g, ' extrait de code ')
+        .replace(/https?:\/\/\S+/gi, ' lien web '),
+    );
+  }
+
   function renderMessage(message) {
     const item = document.createElement('article');
     item.className = `assistant-message assistant-message-${message.role}`;
     const label = document.createElement('strong');
-    label.textContent = message.role === 'assistant' ? 'CVBoost AI' : 'Vous';
+    label.textContent = message.role === 'assistant' ? 'CVBoostBot' : 'Vous';
     const content = document.createElement('p');
-    content.textContent = message.content;
+    content.textContent = message.role === 'assistant'
+      ? cleanAssistantText(message.content)
+      : message.content;
     item.append(label, content);
     if (message.role === 'assistant') {
       const play = document.createElement('button');
       play.type = 'button';
       play.className = 'assistant-play-message';
       play.textContent = 'Écouter';
-      play.addEventListener('click', () => speak(message.content));
+      play.addEventListener('click', () => speak(assistantSpeechText(message.content)));
       item.append(play);
     }
     messages.append(item);
@@ -82,7 +120,7 @@
   function setConversationSettingsEditable(editable) {
     language.disabled = !editable;
     useContext.disabled = !editable;
-    cvSelect.disabled = !editable || !useContext.checked;
+    cvSelect.disabled = !editable || !useContext.checked || cvSelect.options.length < 2;
   }
 
   function speak(text) {
@@ -121,7 +159,7 @@
     if (!conversation.messages.length) {
       const welcome = document.createElement('p');
       welcome.className = 'assistant-welcome';
-      welcome.textContent = 'Posez votre première question à CVBoost AI.';
+      welcome.textContent = 'Posez votre première question à CVBoostBot.';
       messages.append(welcome);
     } else {
       conversation.messages.forEach(renderMessage);
@@ -161,14 +199,19 @@
     messages.replaceChildren();
     const welcome = document.createElement('p');
     welcome.className = 'assistant-welcome';
-    welcome.textContent = 'Posez votre première question à CVBoost AI.';
+    welcome.textContent = 'Posez votre première question à CVBoostBot.';
     messages.append(welcome);
     input.focus();
     setStatus('Nouvelle conversation prête.');
   });
 
   useContext.addEventListener('change', () => {
-    cvSelect.disabled = !useContext.checked;
+    cvSelect.disabled = !useContext.checked || cvSelect.options.length < 2;
+    if (useContext.checked && cvSelect.options.length < 2) {
+      setStatus('Ajoutez d’abord un CV dans « Uploader » pour activer le contexte personnel.', true);
+    } else {
+      setStatus('');
+    }
   });
   setConversationSettingsEditable(!activeConversation);
 
@@ -195,7 +238,7 @@
     if (!text) return;
     const sendButton = document.getElementById('assistantSendMessage');
     sendButton.disabled = true;
-    setStatus('CVBoost AI prépare une réponse…');
+    setStatus('CVBoostBot prépare une réponse…');
     try {
       if (!activeConversation) await createConversation();
       const result = await requestJson(
@@ -216,7 +259,7 @@
       messages.scrollTop = messages.scrollHeight;
       await refreshConversations();
       setStatus('');
-      if (autoSpeak.checked) speak(result.assistant_message.content);
+      if (autoSpeak.checked) speak(assistantSpeechText(result.assistant_message.content));
     } catch (error) {
       setStatus(error.message, true);
     } finally {

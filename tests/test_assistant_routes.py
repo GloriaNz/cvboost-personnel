@@ -111,9 +111,32 @@ class AssistantRouteTests(unittest.TestCase):
 
         response = self.client.get('/assistant')
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b'CVBoost AI', response.data)
-        self.assertIn(b'profil (nom et pr\xc3\xa9nom) et mon CV', response.data)
+        self.assertIn(b'CVBoostBot', response.data)
+        self.assertNotIn(b'CVBoost AI', response.data)
+        self.assertIn(b'J\xe2\x80\x99autorise le partage de mon profil et de mon CV', response.data)
         self.assertIn(b'Lingala', response.data)
+        self.assertIn(b'Pour une r\xc3\xa9ponse bas\xc3\xa9e sur votre CV', response.data)
+        self.assertNotIn(b'GROQ_API_KEY', response.data)
+
+    def test_assistant_page_links_to_cv_upload_when_user_has_no_cv(self):
+        with self.app.app_context():
+            CV.query.filter_by(user_id=self.user_id).delete()
+            db.session.commit()
+
+        response = self.client.get('/assistant')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'Aucun CV disponible', response.data)
+        self.assertIn(b'/upload', response.data)
+
+    def test_assistant_page_explains_when_groq_is_not_configured(self):
+        self.app.config['GROQ_API_KEY'] = None
+
+        response = self.client.get('/assistant')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'GROQ_API_KEY', response.data)
+        self.assertIn(b'red\xc3\xa9marrez l\xe2\x80\x99application', response.data)
 
     def test_creates_lists_and_deletes_owned_conversation_and_messages(self):
         csrf = self.csrf_token()
