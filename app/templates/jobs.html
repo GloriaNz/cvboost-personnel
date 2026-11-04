@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Offres d’emploi – CVBoost{% endblock %}
+{% block content %}
+<section class="page-section">
+  <header class="page-hd page-hd-row">
+    <div>
+      <h1>Offres d’emploi</h1>
+      <p>Parcourez les offres synchronisées et lancez leur analyse avec l’un de vos CV. Les scores de compétences restent indicatifs.</p>
+    </div>
+    {% if can_admin %}
+      <a class="btn btn-ghost" href="{{ url_for('main.job_intelligence_admin') }}">Sources & synchronisations</a>
+    {% endif %}
+  </header>
+
+  <form class="card card-sm jobs-filter-form" method="GET" action="{{ url_for('main.job_search') }}">
+    <div class="jobs-filter-grid">
+      <label>Mot-clé
+        <input class="form-control" type="search" name="q" value="{{ filters.q }}" maxlength="100">
+      </label>
+      <label>Localisation
+        <input class="form-control" type="search" name="location" value="{{ filters.location }}" maxlength="100">
+      </label>
+      <label>Compétences (séparées par des virgules)
+        <input class="form-control" type="text" name="skills" value="{{ selected_skills }}" maxlength="500">
+      </label>
+      <label>Contrat
+        <select class="form-control" name="contract_type">
+          {% for value, label in [('', 'Tous'), ('Stage', 'Stage'), ('Alternance', 'Alternance'), ('CDI', 'CDI'), ('CDD', 'CDD'), ('Freelance', 'Freelance')] %}
+            <option value="{{ value }}" {% if filters.contract_type == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Expérience
+        <select class="form-control" name="experience_level">
+          {% for value, label in [('', 'Tous'), ('Junior', 'Junior'), ('Confirmé', 'Confirmé'), ('Senior', 'Senior')] %}
+            <option value="{{ value }}" {% if filters.experience_level == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Publiées dans les
+        <select class="form-control" name="days">
+          {% for value, label in [('', 'Toutes les dates'), ('1', '24 heures'), ('7', '7 jours'), ('30', '30 jours'), ('90', '90 jours')] %}
+            <option value="{{ value }}" {% if filters.days == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Date limite
+        <select class="form-control" name="deadline">
+          {% for value, label in [('', 'Toutes les dates'), ('7', 'Dans 7 jours'), ('30', 'Dans 30 jours')] %}
+            <option value="{{ value }}" {% if filters.deadline == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Comparer à un CV
+        <select class="form-control" name="cv_id">
+          <option value="">Aucun</option>
+          {% for cv in cvs %}
+            <option value="{{ cv.id }}" {% if matching_cv_id == cv.id %}selected{% endif %}>{{ cv.filename_original }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="jobs-remote-filter">
+        <input type="checkbox" name="remote" value="1" {% if filters.remote %}checked{% endif %}>
+        Télétravail
+      </label>
+    </div>
+    <button class="btn btn-primary" type="submit">Rechercher</button>
+    {% if not matching_cv_id %}
+      <p class="result-ph">Choisissez l’un de vos CV pour afficher le bouton d’analyse sur chaque offre.</p>
+    {% endif %}
+  </form>
+
+  {% if matching_error %}
+    <p class="form-error" role="alert">{{ matching_error }}</p>
+  {% endif %}
+
+  <section class="job-offers-section">
+    <h2>{{ results|length }} offre(s) trouvée(s)</h2>
+    {% if results %}
+      <div class="job-offers-list">
+        {% for result in results %}
+          <article class="job-offer-card">
+            <div>
+              <h3>{{ result.offer.title }}</h3>
+              <p><strong>{{ result.offer.company or 'Entreprise non précisée' }}</strong> · {{ result.offer.location or 'Lieu non précisé' }}</p>
+              <p>{{ result.offer.description[:500] }}{% if result.offer.description|length > 500 %}…{% endif %}</p>
+              <p class="job-offer-skills">
+                {% if result.skills %}Compétences : {{ result.skills|join(', ') }}{% else %}Compétences non précisées{% endif %}
+              </p>
+              <small>{{ result.offer.source.name }} ·
+                {% if result.offer.published_at %}Publiée le {{ result.offer.published_at.strftime('%d/%m/%Y') }}{% else %}Date non précisée{% endif %}
+              </small>
+              {% if result.matching_skills %}
+                <p class="job-offer-match">Compétences communes : {{ result.matching_skills|join(', ') }}</p>
+              {% endif %}
+            </div>
+            <div class="job-offer-actions">
+              {% if result.score is not none %}
+                <span class="badge badge-done">{{ result.score }} % de compétences communes</span>
+              {% endif %}
+              {% if matching_cv_id and result.analysis_text|length >= 30 %}
+                <form method="POST" action="{{ url_for('main.analyze_cv', cv_id=matching_cv_id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="job_description" value="{{ result.analysis_text }}">
+                  <button class="btn btn-primary btn-sm" type="submit">Analyser cette offre avec ce CV</button>
+                </form>
+              {% endif %}
+              <a class="btn btn-outline-blue btn-sm" href="{{ result.offer.source_url }}" target="_blank" rel="noopener noreferrer">Voir l’offre originale</a>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="assistant-empty-list">Aucune offre ne correspond à ces filtres. Les annonces apparaîtront après une synchronisation.</p>
+    {% endif %}
+  </section>
+
+  <details class="card card-sm job-alert-preferences">
+    <summary>Préférences d’alerte sur les nouvelles offres</summary>
+    {% if alert_mail_configured %}
+      <p>Les alertes e-mail sont activées. Elles sont envoyées lors de la prochaine synchronisation périodique pour les nouvelles offres correspondantes.</p>
+    {% else %}
+      <p>Vos préférences sont privées et enregistrées par compte. Pour recevoir les e-mails, configurez le serveur SMTP et activez JOB_ALERTS_ENABLED.</p>
+    {% endif %}
+    <form method="POST" action="{{ url_for('main.save_job_alert_preferences') }}">
+      {{ alert_form.hidden_tag() }}
+      <div class="jobs-filter-grid">
+        <label>{{ alert_form.keywords.label }}{{ alert_form.keywords(class="form-control", maxlength="500") }}</label>
+        <label>{{ alert_form.skills.label }}{{ alert_form.skills(class="form-control", maxlength="500") }}</label>
+        <label>{{ alert_form.location.label }}{{ alert_form.location(class="form-control", maxlength="200") }}</label>
+        <label>{{ alert_form.contract_type.label }}{{ alert_form.contract_type(class="form-control") }}</label>
+        <label>{{ alert_form.experience_level.label }}{{ alert_form.experience_level(class="form-control") }}</label>
+      </div>
+      <div class="jobs-preference-checkboxes">
+        <label>{{ alert_form.is_remote() }} Télétravail</label>
+        <label>{{ alert_form.enabled() }} Activer mes préférences</label>
+      </div>
+      {{ alert_form.submit(class="btn btn-primary") }}
+    </form>
+  </details>
+</section>
+{% endblock %}

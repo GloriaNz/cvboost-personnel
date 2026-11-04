@@ -43,17 +43,14 @@
       <div class="avatar-card">
         <div class="avatar-halo">
           <div class="recruiter-avatar" id="recruiterAvatar">
-            <svg width="68" height="68" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-              <circle cx="12" cy="7" r="4"/>
-            </svg>
+            <img class="recruiter-portrait" src="{{ url_for('static', filename='images/gloria-interviewer.svg') }}" alt="Madame Gloria, recruteuse en veste avec un casque et un micro">
             <div class="audio-waves" id="audioWaves">
               <span></span><span></span><span></span><span></span><span></span>
             </div>
           </div>
         </div>
         <div class="recruiter-info">
-          <h2>Sarah · Recruteuse IA TalentIA</h2>
+          <h2>Madame Gloria · Recruteuse IA TalentIA</h2>
           <span class="recruiter-status" id="recruiterStatus">À votre écoute</span>
         </div>
         <div class="recruiter-tips">
@@ -71,7 +68,7 @@
           {% if turn.answer or not loop.last %}
             <!-- Bulle Recruteur passée -->
             <div class="chat-bubble recruiter-bubble">
-              <div class="bubble-tag">Sarah · Recruteuse</div>
+              <div class="bubble-tag">Madame Gloria · Recruteuse</div>
               <div class="bubble-text">{{ turn.question }}</div>
             </div>
 
@@ -93,7 +90,7 @@
               <span class="badge-question-num">QUESTION {{ analysis.interview_history|length }} / 10</span>
               <button type="button" class="btn-voice-replay audio-play-button" data-question="{{ current_turn.question }}" id="playActiveBtn">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                <span>Écouter la recruteuse parler</span>
+                <span>Écouter Madame Gloria</span>
               </button>
             </div>
             <p class="active-question-body" id="activeQuestionText">{{ current_turn.question }}</p>
@@ -121,8 +118,14 @@
                 <button type="button" class="btn btn-primary btn-ripple" data-voice-start>
                   Démarrer l’entretien vocal
                 </button>
-                <button type="button" class="btn-mic btn-mic-stop" data-voice-stop hidden>
+                <button type="button" class="btn-mic btn-mic-pause" data-voice-pause aria-label="Mettre l’entretien vocal en pause" hidden>
                   Mettre en pause
+                </button>
+                <button type="button" class="btn-mic btn-mic-record" data-voice-resume aria-label="Reprendre l’entretien vocal" hidden>
+                  Reprendre l’entretien
+                </button>
+                <button type="button" class="btn-mic btn-mic-stop" data-voice-stop aria-label="Arrêter l’entretien vocal" hidden>
+                  Arrêter l’entretien vocal
                 </button>
                 <button type="button" class="btn-mic btn-mic-record" data-audio-record id="micRecordBtn">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2m-7 9v3m-4 0h8"/></svg>
@@ -141,7 +144,7 @@
 
               <!-- Indicateur d'état vocal -->
               <div class="dock-status-line">
-                <p class="audio-status" data-audio-status role="status" aria-live="polite">Démarrez l’entretien vocal pour entendre Sarah, puis répondez à voix haute. Vous pouvez aussi écrire votre réponse.</p>
+                <p class="audio-status" data-audio-status role="status" aria-live="polite">Madame Gloria vous accueille et vous pose la première question. Démarrez l’entretien vocal pour répondre à voix haute, ou écrivez votre réponse.</p>
               </div>
             </div>
 
@@ -191,7 +194,7 @@ document.addEventListener("DOMContentLoaded", () => {
   window.addEventListener("speechSynthesisStart", () => {
     if (waves) waves.classList.add("active");
     if (avatar) avatar.classList.add("speaking");
-    if (statusLbl) statusLbl.textContent = "Sarah est en train de parler…";
+    if (statusLbl) statusLbl.textContent = "Madame Gloria est en train de parler…";
   });
 
   window.addEventListener("speechSynthesisEnd", () => {

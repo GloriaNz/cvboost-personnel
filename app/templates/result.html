@@ -9,27 +9,9 @@
   </div>
 
   <div class="card card-sm" style="margin-bottom:24px;">
-    <h2 style="font-size:1.1rem;margin-bottom:8px;">Comparer {{ cv.filename_original }} à une offre d’emploi</h2>
-    <p style="margin-bottom:16px;">Collez ici l’offre du poste visé — pas le texte de votre CV. L’IA compare les compétences demandées à celles de votre CV pour estimer leur compatibilité et préparer des questions d’entretien adaptées.</p>
-    <form method="POST" action="{{ url_for('main.analyze_cv', cv_id=cv.id) }}">
-      {{ match_form.hidden_tag() }}
-      <div class="form-group">
-        {{ match_form.job_description.label(class="form-label") }}
-        {{ match_form.job_description(
-            class="form-control",
-            rows="8",
-            maxlength="12000",
-            placeholder="Collez ici la description du poste, les missions et les compétences recherchées…"
-        ) }}
-        {% for error in match_form.job_description.errors %}
-          <p class="form-error">{{ error }}</p>
-        {% endfor %}
-      </div>
-      <button type="submit" class="btn btn-primary btn-ripple">Analyser mon profil</button>
-    </form>
-    <p class="result-ph" style="margin-top:14px;">
-      Le CV et l’offre sont transmis au fournisseur d’IA configuré pour l’analyse. N’incluez pas d’informations sensibles inutiles. Le score reste indicatif.
-    </p>
+    <h2 style="font-size:1.1rem;margin-bottom:8px;">Votre CV est prêt à être comparé aux offres</h2>
+    <p style="margin-bottom:16px;">Choisissez une annonce dans la liste ci-dessous, ou parcourez toutes les offres disponibles. CVBoost analysera l’annonce sélectionnée avec votre CV, sans saisie ni copier-coller.</p>
+    <a class="btn btn-primary" href="{{ url_for('main.job_search', cv_id=cv.id) }}">Parcourir toutes les offres et analyser avec ce CV</a>
   </div>
 
   <section class="card card-sm" style="margin-bottom:24px;" aria-labelledby="pitch-title">
@@ -63,7 +45,7 @@
         <div style="display:flex;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap;">
           <a href="{{ url_for('main.interview_room', analysis_id=analysis.id) }}" class="btn btn-primary btn-ripple" style="padding:10px 20px;box-shadow:0 4px 18px rgba(37,99,235,0.35);">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="margin-right:6px;"><path d="M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v3m-4 0h8"/></svg>
-            Lancer la simulation d'entretien en direct
+            Lancer la simulation d'entretien avec Madame Gloria
           </a>
           <span class="badge-inv">Indicateur d’aide, pas une décision automatique</span>
         </div>
@@ -104,7 +86,7 @@
             Simulation d’entretien avec la recruteuse IA
           </h2>
           <p style="color:#475569;font-size:0.95rem;line-height:1.5;">
-            L'analyse de vos compétences est terminée. Pour vous préparer dans les conditions réelles d'un recrutement, entraînez-vous en face-à-face vocal avec <strong>Sarah</strong>, notre recruteuse IA, dans un <strong>espace immersif distinct</strong>.
+            L'analyse de vos compétences est terminée. Pour vous préparer dans les conditions réelles d'un recrutement, entraînez-vous en face-à-face vocal avec <strong>Madame Gloria</strong>, notre recruteuse IA, dans un <strong>espace immersif distinct</strong>.
           </p>
         </div>
         <div style="text-align:right;">
@@ -128,7 +110,7 @@
             « {{ current_q }} »
           </p>
           <p style="font-size:0.8rem;color:#64748b;">
-            Sarah a formulé cette question spécifiquement selon les exigences de l'offre et vos expériences.
+            Madame Gloria a formulé cette question spécifiquement selon les exigences de l'offre et vos expériences.
           </p>
         </div>
 
@@ -193,10 +175,10 @@
   </div>
 
   <section class="card card-sm job-offers-section" aria-labelledby="job-offers-title">
-    <h2 id="job-offers-title" style="font-size:1.1rem;margin-bottom:8px;">Offres collectées pour votre profil</h2>
+    <h2 id="job-offers-title" style="font-size:1.1rem;margin-bottom:8px;">Offres d’emploi disponibles</h2>
     <p class="result-ph">
-      Les offres sont classées selon les compétences reconnues dans le CV et dans leur texte.
-      Ce rapprochement lexical n’est ni exhaustif ni une décision de recrutement.
+      Choisissez une offre puis cliquez sur « Analyser cette offre ». L’analyse compare son contenu à votre CV.
+      Le rapprochement lexical des compétences reste indicatif et n’est pas une décision de recrutement.
     </p>
     {% if job_offers_error %}
       <p class="form-error" role="alert">{{ job_offers_error }}</p>
@@ -238,9 +220,8 @@
         {% endfor %}
       </div>
     {% else %}
-      <p>Aucune offre chargée. Collectez puis nettoyez les annonces pour les afficher ici.</p>
-      <code>python -m data_pipeline.scraper_jobs --limit 20 --details 10</code>
-      <code>python -m data_pipeline.pandas_cleaning --input data_pipeline\jobs_mediacongo.csv --output data_pipeline\jobs_clean.csv</code>
+      <p>Aucune offre n’est disponible dans la liste locale pour le moment. Parcourez les annonces synchronisées pour voir toutes les offres actives.</p>
+      <a class="btn btn-primary" href="{{ url_for('main.job_search', cv_id=cv.id) }}">Voir toutes les offres</a>
     {% endif %}
   </section>
 

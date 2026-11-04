@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Sources d’emploi – CVBoost{% endblock %}
+{% block content %}
+<section class="page-section">
+  <header class="page-hd page-hd-row">
+    <div>
+      <h1>Sources & synchronisations</h1>
+      <p>Accès réservé aux adresses configurées dans JOB_ADMIN_EMAILS.</p>
+    </div>
+    <a class="btn btn-ghost" href="{{ url_for('main.job_search') }}">Retour aux offres</a>
+  </header>
+
+  <section class="card card-sm">
+    <h2>Sources enregistrées</h2>
+    {% if sources %}
+      <div class="job-offers-list">
+        {% for source in sources %}
+          <article class="job-offer-card">
+            <div>
+              <h3>{{ source.name }}</h3>
+              <a href="{{ source.base_url }}" rel="noopener noreferrer">{{ source.base_url }}</a>
+            </div>
+            <span class="badge {{ 'badge-done' if source.enabled else 'badge-error' }}">
+              {{ 'Activée' if source.enabled else 'Désactivée' }}
+            </span>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p>Aucune source n’a encore été synchronisée.</p>
+    {% endif %}
+    <p class="job-sync-command">
+      Synchronisation ponctuelle : <code>python -m data_pipeline.job_scheduler</code><br>
+      Synchronisation toutes les 4 heures : <code>python -m data_pipeline.job_scheduler --interval-hours 4</code>
+    </p>
+  </section>
+
+  <section class="card card-sm job-sync-history">
+    <h2>Dernières synchronisations</h2>
+    {% if runs %}
+      <div class="table-responsive">
+        <table>
+          <thead><tr><th>Source</th><th>Début</th><th>État</th><th>Récupérées</th><th>Ajoutées</th><th>Mises à jour</th><th>Erreur</th></tr></thead>
+          <tbody>
+            {% for run in runs %}
+              <tr>
+                <td>{{ run.source.name }}</td>
+                <td>{{ run.started_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td>{{ run.status }}</td>
+                <td>{{ run.fetched_count }}</td>
+                <td>{{ run.added_count }}</td>
+                <td>{{ run.updated_count }}</td>
+                <td>{{ run.error_message }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p>Aucune synchronisation effectuée.</p>
+    {% endif %}
+  </section>
+</section>
+{% endblock %}

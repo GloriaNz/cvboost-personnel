@@ -32,6 +32,22 @@ def create_app(test_config=None):
             'GROQ_TRANSCRIPTION_MODEL',
             'whisper-large-v3-turbo',
         ),
+        ASSISTANT_RATE_LIMIT_PER_MINUTE=int(
+            os.environ.get('ASSISTANT_RATE_LIMIT_PER_MINUTE', '10')
+        ),
+        NLLB_BASE_MODEL=os.environ.get(
+            'NLLB_BASE_MODEL',
+            'facebook/nllb-200-distilled-600M',
+        ),
+        NLLB_ADAPTER_PATH=os.environ.get(
+            'NLLB_ADAPTER_PATH',
+            os.path.join(
+                os.path.dirname(os.path.dirname(__file__)),
+                'ai_engine',
+                'models',
+                'nllb-lora-lin-fra',
+            ),
+        ),
         GEMINI_API_KEY=os.environ.get('GEMINI_API_KEY'),
         GEMINI_MODEL=os.environ.get('GEMINI_MODEL', 'gemini-3.8-flash'),
         MISTRAL_API_KEY=os.environ.get('MISTRAL_API_KEY'),
@@ -44,6 +60,24 @@ def create_app(test_config=None):
                 'jobs_clean.csv',
             ),
         ),
+        JOB_ADMIN_EMAILS=os.environ.get('JOB_ADMIN_EMAILS', ''),
+        MEDIACONGO_COLLECTION_APPROVED=(
+            os.environ.get('MEDIACONGO_COLLECTION_APPROVED', '').lower() == 'true'
+        ),
+        JOB_ALERTS_ENABLED=os.environ.get('JOB_ALERTS_ENABLED', '').lower() == 'true',
+        JOB_ALERT_SMTP_HOST=os.environ.get('JOB_ALERT_SMTP_HOST', ''),
+        JOB_ALERT_SMTP_PORT=int(os.environ.get('JOB_ALERT_SMTP_PORT', '587')),
+        JOB_ALERT_SMTP_USERNAME=os.environ.get('JOB_ALERT_SMTP_USERNAME', ''),
+        JOB_ALERT_SMTP_PASSWORD=os.environ.get('JOB_ALERT_SMTP_PASSWORD', ''),
+        JOB_ALERT_SMTP_USE_TLS=os.environ.get(
+            'JOB_ALERT_SMTP_USE_TLS',
+            'true',
+        ).lower() == 'true',
+        JOB_ALERT_SMTP_USE_SSL=os.environ.get(
+            'JOB_ALERT_SMTP_USE_SSL',
+            'false',
+        ).lower() == 'true',
+        JOB_ALERT_FROM_EMAIL=os.environ.get('JOB_ALERT_FROM_EMAIL', ''),
         MAX_CONTENT_LENGTH=5 * 1024 * 1024 + 64 * 1024,
         MAX_UPLOAD_SIZE=5 * 1024 * 1024,
         MAX_AUDIO_SIZE=5 * 1024 * 1024,
@@ -90,7 +124,11 @@ def create_app(test_config=None):
                 'rejected',
                 'request_too_large',
             )
-        if request.path.endswith('/interview/audio') and request.method == 'POST':
+        if (
+            request.path.endswith('/interview/audio')
+            or request.path.startswith('/api/assistant/conversations/')
+            and request.path.endswith('/audio')
+        ) and request.method == 'POST':
             return jsonify(error='Le fichier audio dépasse la limite de 5 Mo.'), 413
         return error
 

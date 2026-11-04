@@ -229,6 +229,69 @@ présentation basé sur son contenu et l'écouter avec la synthèse vocale fran�
 du navigateur. Une clé Gemini, Groq ou Mistral doit être configurée pour générer
 le texte ; la disponibilité de la voix dépend du navigateur et de l'appareil.
 
+### Assistant CVBoost AI
+
+La page `/assistant` fournit des conversations persistantes privées par compte,
+alimentées exclusivement par Groq. L'utilisateur choisit s'il souhaite partager
+son nom/prénom de profil et un CV qu'il possède ; ce contexte est désactivé par
+défaut et l'adresse e-mail n'est jamais transmise. Les messages sont limités à
+10 par minute et le serveur ne journalise pas leur contenu. Les
+conversations, leurs messages et le compteur de requêtes sont créés de façon
+additive au démarrage de l'application avec les tables SQLAlchemy.
+
+Les routes JSON sont :
+
+* `GET/POST /api/assistant/conversations` : lister/créer une conversation.
+* `GET/DELETE /api/assistant/conversations/<id>` : lire/supprimer ses propres
+  conversations.
+* `POST /api/assistant/conversations/<id>/messages` : envoyer un message à
+  Groq et enregistrer les deux réponses.
+* `POST /api/assistant/conversations/<id>/audio` : transcrire temporairement un
+  audio français via Groq Whisper ; le fichier n'est pas conservé.
+
+Toutes les modifications d'état demandent le jeton CSRF de la page. Pour le
+Lingala, l'application attend l'adaptateur NLLB-LoRA déjà entraîné et le modèle
+de base disponibles localement. Aucun poids de modèle n'est inclus au dépôt et
+aucun téléchargement automatique ni réentraînement n'est effectué. Installer
+les dépendances optionnelles après avoir choisi la version PyTorch adaptée à la
+machine :
+
+```powershell
+pip install -r requirements-translation.txt
+```
+
+Le notebook `ai_engine/sprint3_colab.ipynb` confirme que l'adaptateur entraîné
+est sauvegardé dans Google Drive sous
+`CVBoost/checkpoints/nllb-lora-lin-fra`. Ses sorties Colab listent
+`adapter_config.json`, `adapter_model.safetensors` et les fichiers du tokenizer.
+Le notebook ne contient pas les poids eux-mêmes dans le dépôt : `ai_engine/models/`
+est volontairement ignoré par Git.
+
+Après avoir téléchargé le dossier de l'adaptateur depuis Google Drive, le placer
+dans `ai_engine/models/nllb-lora-lin-fra/` à la racine du projet, en conservant
+au minimum `adapter_config.json` et `adapter_model.safetensors`. On peut vérifier
+le contenu depuis Colab et télécharger une archive avec :
+
+```python
+import shutil
+from google.colab import files
+
+adapter_dir = "/content/drive/MyDrive/CVBoost/checkpoints/nllb-lora-lin-fra"
+archive = shutil.make_archive("/content/nllb-lora-lin-fra", "zip", adapter_dir)
+files.download(archive)
+```
+
+Configurer `NLLB_BASE_MODEL` et `NLLB_ADAPTER_PATH` dans `.env`. Le chemin
+par défaut `ai_engine/models/nllb-lora-lin-fra` correspond au dossier local
+après extraction. Le modèle de base NLLB doit également être présent dans le
+cache local de Hugging Face : l'application charge les modèles avec
+`local_files_only=True` et ne télécharge aucun poids automatiquement. En
+l'absence du modèle de base ou de l'adaptateur, la conversation française reste
+opérationnelle et l'interface indique que la traduction Lingala n'est pas
+disponible. La dictée et la lecture vocale Lingala ne sont pas annoncées comme prises en charge :
+la transcription utilise le service français et la lecture dépend des voix
+Lingala réellement installées dans le navigateur.
+
 Lancer les tests ciblés avec :
 
 ```powershell
@@ -300,6 +363,64 @@ communs, sans fabriquer un score de compatibilité ; choisissez une annonce pour
 préremplir et lancer l'analyse IA. Le fichier peut être déplacé avec
 `JOB_OFFERS_FILE` dans `.env`. Les descriptions absentes ou trop longues sont
 signalées et ne sont pas envoyées à l'analyse.
+
+#### Recherche persistante et synchronisation
+
+La page `/jobs` recherche dans les annonces stockées en base, avec filtres par
+mots-clés, compétences reconnues, lieu, contrat, expérience, télétravail, date
+de publication et date limite. Les offres dont la date limite est passée sont
+exclues.
+La comparaison avec un CV affiche seulement la part des compétences détectées en
+commun ; ce n'est pas une prédiction d'embauche. Une offre peut ensuite être
+envoyée au formulaire d'analyse CV existant. Les nouvelles tables `job_sources`,
+`job_offers`, `job_sync_runs`, `job_alert_preferences` et `job_alert_deliveries`
+sont ajoutées sans supprimer les tables existantes.
+
+Seul le connecteur MediaCongo déjà présent est activé. Il conserve son contrôle
+`robots.txt`, son délai minimum et les liens limités à `mediacongo.net`. Une
+collecte périodique doit être exécutée dans un processus distinct du serveur web,
+afin d'éviter une synchronisation par worker Gunicorn :
+
+```powershell
+python -m data_pipeline.job_scheduler
+python -m data_pipeline.job_scheduler --input-csv data_pipeline/jobs_clean.csv
+python -m data_pipeline.job_scheduler --interval-hours 4
+```
+
+Le premier appel collecte MediaCongo ; le second importe les données locales ;
+le dernier répète la collecte à l'intervalle choisi (2 à 4 heures). Le processus
+peut être arrêté avec Ctrl+C. `JOB_ADMIN_EMAILS` accepte une liste d'adresses
+séparées par des virgules pour accéder à `/admin/job-intelligence`. Les alertes
+ne sont envoyées qu'aux utilisateurs qui les activent et pour les offres
+ajoutées après la dernière mise à jour de leurs préférences. La livraison est
+dédupliquée par compte et par offre ; les erreurs SMTP sont enregistrées et
+réessayées lors de la prochaine exécution.
+
+Pour activer l'envoi, configurer dans `.env` `JOB_ALERTS_ENABLED=true`,
+`JOB_ALERT_SMTP_HOST`, `JOB_ALERT_SMTP_PORT`, `JOB_ALERT_SMTP_USERNAME`,
+`JOB_ALERT_SMTP_PASSWORD`, `JOB_ALERT_FROM_EMAIL` et les paramètres TLS/SSL.
+Laisser `JOB_ALERTS_ENABLED=false` tant que le fournisseur e-mail n'est pas
+configuré. Ne jamais commiter les identifiants SMTP.
+
+Par prudence, la collecte réseau est désactivée par défaut. Après avoir vérifié
+et accepté les conditions d'utilisation du site, régler
+`MEDIACONGO_COLLECTION_APPROVED=true` dans `.env` avant de lancer une collecte
+live. Sans cette confirmation, l'import du CSV déjà collecté reste disponible.
+
+Emploi.cd, CongoJob et ONEM n'ont pas de connecteur actif. Vérification du
+04/11/2026 : `emploi.cd` annonce `search=yes` et `use=reference` dans ses
+signaux robots, mais l'accès aux pages renvoie HTTP 403 depuis l'environnement ;
+CongoJob publie un sitemap d'offres et son `robots.txt` autorise les pages
+publiques, mais une URL d'offre vérifiée redirige vers l'accueil et ses
+conditions de réutilisation n'ont pas pu être confirmées ; ONEM affiche un
+portail d'offres sur son site, mais `robots.txt` et les sitemaps usuels renvoient
+404 et l'accès aux services candidats redirige vers une authentification. Ces
+sources ne sont donc pas aspirées tant qu'un flux public stable et les règles
+de réutilisation ne sont pas confirmés. Aucune page de source n'est collectée sans vérification de ses
+conditions d'utilisation. Les champs d'expérience, de type de contrat et de
+télétravail sont extraits par mots-clés quand ils apparaissent dans le titre ou
+la description ; ils restent inconnus autrement. Les dates limites ne sont pas
+encore extraites par le collecteur MediaCongo.
 
 ### Sprint 3 — Assistant DRH Multi-Fournisseurs (Gemini → Groq → Mistral)
 

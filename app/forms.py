@@ -1,7 +1,14 @@
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileField, FileRequired, FileAllowed
-from wtforms import StringField, PasswordField, SubmitField, TextAreaField
-from wtforms.validators import DataRequired, Email, EqualTo, Length, ValidationError
+from wtforms import (
+    BooleanField,
+    PasswordField,
+    SelectField,
+    StringField,
+    SubmitField,
+    TextAreaField,
+)
+from wtforms.validators import DataRequired, Email, EqualTo, Length, Optional, ValidationError
 from app.models import User
 
 
@@ -74,3 +81,32 @@ class InterviewAudioForm(FlaskForm):
             ),
         ],
     )
+
+
+class JobAlertPreferencesForm(FlaskForm):
+    keywords = StringField('Mots-clés', validators=[Optional(), Length(max=500)])
+    skills = StringField('Compétences', validators=[Optional(), Length(max=500)])
+    location = StringField('Localisation', validators=[Optional(), Length(max=200)])
+    contract_type = SelectField(
+        'Type de contrat',
+        choices=[
+            ('', 'Tous les contrats'),
+            ('Stage', 'Stage'),
+            ('Alternance', 'Alternance'),
+            ('CDI', 'CDI'),
+            ('CDD', 'CDD'),
+            ('Freelance', 'Freelance'),
+        ],
+    )
+    experience_level = SelectField(
+        'Expérience',
+        choices=[
+            ('', 'Tous les niveaux'),
+            ('Junior', 'Junior'),
+            ('Confirmé', 'Confirmé'),
+            ('Senior', 'Senior'),
+        ],
+    )
+    is_remote = BooleanField('Télétravail')
+    enabled = BooleanField('Activer mes préférences d’alerte')
+    submit = SubmitField('Enregistrer mes préférences')

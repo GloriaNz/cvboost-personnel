@@ -1,0 +1,7 @@
+# Optional dependencies for local NLLB-LoRA French-Lingala translation.
+# Install PyTorch using the wheel appropriate for the machine (CPU or CUDA)
+# before installing this file.
+torch>=2.2
+transformers>=4.40,<5
+peft>=0.10
+sentencepiece>=0.2

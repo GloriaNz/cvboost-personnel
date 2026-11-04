@@ -28,6 +28,7 @@
       }
     });
   }
+
 })();
 
 // ── 2. Flash messages: auto-dismiss ────────────────────────
@@ -335,6 +336,8 @@ function showToast(msg, type = 'info') {
     const form = controls.closest('form');
     const answer = form?.querySelector('textarea[name="answer"]');
     const voiceStartButton = controls.querySelector('[data-voice-start]');
+    const voicePauseButton = controls.querySelector('[data-voice-pause]');
+    const voiceResumeButton = controls.querySelector('[data-voice-resume]');
     const voiceStopButton = controls.querySelector('[data-voice-stop]');
     const recordButton = controls.querySelector('[data-audio-record]');
     const stopButton = controls.querySelector('[data-audio-stop]');
@@ -387,11 +390,15 @@ function showToast(msg, type = 'info') {
 
     let voiceRecognition;
     let voiceMode = false;
+    let voicePaused = false;
     let voiceSpeaking = false;
     let voiceSubmitting = false;
     let voiceTranscript = '';
     let silenceTimer;
     let listenRestartTimer;
+    let voiceSessionId = 0;
+    let introState = 'pending';
+    let introPromise;
 
     function setVoiceStatus(message, state = '') {
       if (!status) return;
@@ -401,16 +408,24 @@ function showToast(msg, type = 'info') {
 
     function setVoiceMode(active) {
       voiceMode = active;
-      if (voiceStartButton) voiceStartButton.hidden = active;
-      if (voiceStopButton) voiceStopButton.hidden = !active;
+      if (!active) voicePaused = false;
+      updateVoiceControls();
       if (recordButton) recordButton.disabled = active;
       if (transcribeButton) transcribeButton.disabled = active || !audioBlob;
       const submitButton = form?.querySelector('[type="submit"]');
       if (submitButton) submitButton.disabled = active;
     }
 
+    function updateVoiceControls() {
+      const controlsActive = voiceMode || introState === 'playing' || voicePaused;
+      if (voiceStartButton) voiceStartButton.hidden = controlsActive;
+      if (voicePauseButton) voicePauseButton.hidden = !controlsActive || voicePaused;
+      if (voiceResumeButton) voiceResumeButton.hidden = !controlsActive || !voicePaused;
+      if (voiceStopButton) voiceStopButton.hidden = !controlsActive;
+    }
+
     function startVoiceListening() {
-      if (!voiceMode || !voiceRecognition || voiceSpeaking || voiceSubmitting) return;
+      if (!voiceMode || voicePaused || !voiceRecognition || voiceSpeaking || voiceSubmitting) return;
       try {
         voiceRecognition.start();
         setVoiceStatus('Je vous écoute. Prenez votre temps.');
@@ -418,7 +433,7 @@ function showToast(msg, type = 'info') {
         if (error.name === 'InvalidStateError') {
           clearTimeout(listenRestartTimer);
           listenRestartTimer = setTimeout(() => {
-            if (voiceMode && !voiceSpeaking && !voiceSubmitting) startVoiceListening();
+            if (voiceMode && !voicePaused && !voiceSpeaking && !voiceSubmitting) startVoiceListening();
           }, 350);
         } else {
           stopVoiceConversation();
@@ -428,7 +443,36 @@ function showToast(msg, type = 'info') {
       }
     }
 
+    function pauseVoiceConversation() {
+      if ((!voiceMode && introState !== 'playing') || voicePaused) return;
+      voicePaused = true;
+      clearTimeout(silenceTimer);
+      clearTimeout(listenRestartTimer);
+      if (voiceRecognition) {
+        try { voiceRecognition.abort(); } catch (error) {
+          if (error.name !== 'InvalidStateError') console.warn('Could not pause interview speech recognition:', error);
+        }
+      }
+      window.speechSynthesis?.pause();
+      updateVoiceControls();
+      setVoiceStatus('Entretien vocal en pause. Reprenez quand vous êtes prêt.');
+    }
+
+    function resumeVoiceConversation() {
+      if ((!voiceMode && introState !== 'playing') || !voicePaused) return;
+      voicePaused = false;
+      updateVoiceControls();
+      window.speechSynthesis?.resume();
+      if (voiceMode && voiceSpeaking) {
+        setVoiceStatus('Madame Gloria reprend la parole…');
+      } else if (voiceMode) {
+        startVoiceListening();
+      }
+    }
+
     function stopVoiceConversation() {
+      if (introState === 'playing') introState = 'stopped';
+      voiceSessionId += 1;
       setVoiceMode(false);
       voiceSpeaking = false;
       voiceSubmitting = false;
@@ -436,10 +480,12 @@ function showToast(msg, type = 'info') {
       clearTimeout(listenRestartTimer);
       window.speechSynthesis?.cancel();
       if (voiceRecognition) {
-        try { voiceRecognition.stop(); } catch (error) {
+        try { voiceRecognition.abort(); } catch (error) {
           if (error.name !== 'InvalidStateError') console.warn('Could not stop interview speech recognition:', error);
         }
       }
+      window.dispatchEvent(new CustomEvent('speechSynthesisEnd'));
+      updateVoiceControls();
     }
 
     function speakInterviewText(text) {
@@ -461,7 +507,7 @@ function showToast(msg, type = 'info') {
               if (error.name !== 'InvalidStateError') console.warn('Could not pause speech recognition:', error);
             }
           }
-          setVoiceStatus('Sarah vous parle…');
+          setVoiceStatus('Madame Gloria vous parle…');
           window.dispatchEvent(new CustomEvent('speechSynthesisStart'));
         };
         utterance.onend = () => {
@@ -478,13 +524,43 @@ function showToast(msg, type = 'info') {
       });
     }
 
+    async function playInterviewIntroduction() {
+      const activeQuestion = document.getElementById('activeQuestionText')?.textContent?.trim();
+      if (!activeQuestion) return;
+      introState = 'playing';
+      updateVoiceControls();
+      await speakInterviewText(
+        'Bonjour Madame, bonjour Monsieur. Bienvenue à l’entretien d’embauche. '
+        + 'Sentez-vous à l’aise. Voici votre première question.'
+      );
+      await speakInterviewText(activeQuestion);
+      introState = 'complete';
+      updateVoiceControls();
+    }
+
+    const firstQuestion = document.getElementById('activeQuestionText')?.textContent?.trim();
+    if (firstQuestion && window.speechSynthesis && window.SpeechSynthesisUtterance) {
+      introState = 'playing';
+      updateVoiceControls();
+      introPromise = playInterviewIntroduction().catch(error => {
+        if (introState === 'stopped') return;
+        introState = 'pending';
+        updateVoiceControls();
+        setVoiceStatus(
+          'L’accueil vocal automatique n’a pas pu démarrer. Cliquez sur « Démarrer l’entretien vocal » pour l’entendre.',
+          'error',
+        );
+        console.warn('Automatic interview introduction could not play:', error);
+      });
+    }
+
     function appendVoiceExchange(question, response) {
       const dialogue = document.getElementById('dialogueScroll');
       const banner = dialogue?.querySelector('.active-question-banner');
       if (!dialogue || !banner) return;
 
       for (const [speaker, text, className] of [
-        ['Sarah · Recruteuse', question, 'recruiter-bubble'],
+        ['Madame Gloria · Recruteuse', question, 'recruiter-bubble'],
         ['Vous (Candidat)', response, 'candidate-bubble'],
       ]) {
         const bubble = document.createElement('div');
@@ -503,9 +579,10 @@ function showToast(msg, type = 'info') {
 
     async function submitVoiceAnswer() {
       if (!voiceMode || voiceSubmitting || answer.value.trim().length < 2) return;
+      const sessionId = voiceSessionId;
       voiceSubmitting = true;
       clearTimeout(silenceTimer);
-      setVoiceStatus('Merci, Sarah prépare la prochaine question…');
+      setVoiceStatus('Merci, Madame Gloria prépare la prochaine question…');
       try {
         if (voiceRecognition) voiceRecognition.stop();
       } catch (error) {
@@ -520,6 +597,7 @@ function showToast(msg, type = 'info') {
         });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || 'La réponse n’a pas pu être enregistrée.');
+        if (!voiceMode || sessionId !== voiceSessionId) return;
 
         const submittedAnswer = answer.value.trim();
         const activeQuestion = document.getElementById('activeQuestionText')?.textContent?.trim() || '';
@@ -551,15 +629,17 @@ function showToast(msg, type = 'info') {
         answer.dispatchEvent(new Event('input', { bubbles: true }));
         voiceTranscript = '';
         voiceSubmitting = false;
-        if (!voiceMode) {
+        if (!voiceMode || voicePaused) {
           setVoiceStatus('Réponse enregistrée. Reprenez l’entretien vocal quand vous êtes prêt.');
           return;
         }
         await speakInterviewText('Merci pour votre réponse.');
+        if (!voiceMode || sessionId !== voiceSessionId) return;
         await speakInterviewText(result.question);
+        if (!voiceMode || sessionId !== voiceSessionId) return;
         startVoiceListening();
       } catch (error) {
-        if (!voiceMode) return;
+        if (!voiceMode || sessionId !== voiceSessionId) return;
         stopVoiceConversation();
         setVoiceStatus(`${error.message} Votre réponse est conservée ; vous pouvez la renvoyer ou reprendre l’entretien vocal.`, 'error');
       }
@@ -584,6 +664,7 @@ function showToast(msg, type = 'info') {
       voiceRecognition.continuous = true;
       voiceRecognition.interimResults = true;
       voiceRecognition.onresult = event => {
+        if (!voiceMode || voicePaused) return;
         let interimTranscript = '';
         let finalTranscript = '';
         for (let index = event.resultIndex; index < event.results.length; index += 1) {
@@ -599,11 +680,11 @@ function showToast(msg, type = 'info') {
           silenceTimer = setTimeout(submitVoiceAnswer, 3000);
         }
         if (interimTranscript) setVoiceStatus(`Je vous écoute… « ${interimTranscript} »`);
-        else if (voiceMode && !voiceSubmitting) setVoiceStatus('Je vous écoute. Prenez votre temps.');
+        else if (voiceMode && !voicePaused && !voiceSubmitting) setVoiceStatus('Je vous écoute. Prenez votre temps.');
       };
       voiceRecognition.onerror = event => {
         console.warn('Interview speech recognition error:', event.error);
-        if (!voiceMode || event.error === 'no-speech' || event.error === 'aborted') return;
+        if (!voiceMode || voicePaused || event.error === 'no-speech' || event.error === 'aborted') return;
         stopVoiceConversation();
         setVoiceStatus(
           event.error === 'not-allowed' || event.error === 'service-not-allowed'
@@ -613,7 +694,7 @@ function showToast(msg, type = 'info') {
         );
       };
       voiceRecognition.onend = () => {
-        if (!voiceMode || voiceSpeaking || voiceSubmitting) return;
+        if (!voiceMode || voicePaused || voiceSpeaking || voiceSubmitting) return;
         if (answer.value.trim().length >= 2) {
           clearTimeout(silenceTimer);
           silenceTimer = setTimeout(submitVoiceAnswer, 3000);
@@ -626,6 +707,7 @@ function showToast(msg, type = 'info') {
       };
 
       setVoiceMode(true);
+      const sessionId = ++voiceSessionId;
       voiceTranscript = '';
       answer.value = '';
       answer.dispatchEvent(new Event('input', { bubbles: true }));
@@ -637,19 +719,25 @@ function showToast(msg, type = 'info') {
       }
 
       try {
-        await speakInterviewText('Bonjour, bienvenue à cet entretien. Je suis Sarah, votre recruteuse. Prenez votre temps pour répondre ; nous allons avancer question par question.');
-        await speakInterviewText(activeQuestion);
+        if (introState === 'playing' && introPromise) {
+          await introPromise;
+        } else if (introState !== 'complete') {
+          await playInterviewIntroduction();
+        }
+        if (!voiceMode || sessionId !== voiceSessionId) return;
         startVoiceListening();
       } catch (error) {
-        if (!voiceMode) return;
+        if (!voiceMode || sessionId !== voiceSessionId) return;
         stopVoiceConversation();
         setVoiceStatus(error.message, 'error');
       }
     });
 
+    voicePauseButton?.addEventListener('click', pauseVoiceConversation);
+    voiceResumeButton?.addEventListener('click', resumeVoiceConversation);
     voiceStopButton?.addEventListener('click', () => {
       stopVoiceConversation();
-      setVoiceStatus('Entretien vocal en pause. Reprenez quand vous êtes prêt.');
+      setVoiceStatus('Entretien vocal arrêté. Vous pouvez le redémarrer quand vous le souhaitez.');
     });
 
     recordButton.addEventListener('click', async () => {

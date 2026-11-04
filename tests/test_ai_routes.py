@@ -108,7 +108,13 @@ class AIRouteTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'D\xc3\xa9marrer l\xe2\x80\x99entretien vocal', response.data)
-        self.assertIn(b'entendre Sarah', response.data)
+        self.assertIn(b'Madame Gloria vous accueille', response.data)
+        self.assertIn(b'data-voice-pause', response.data)
+        self.assertIn(b'Mettre en pause', response.data)
+        self.assertIn(b'data-voice-resume', response.data)
+        self.assertIn(b'data-voice-stop', response.data)
+        self.assertIn(b'Arr\xc3\xaater l\xe2\x80\x99entretien vocal', response.data)
+        self.assertIn(b'Madame Gloria', response.data)
         self.assertIn(b'Parlez-moi de votre exp\xc3\xa9rience avec Python.', response.data)
 
     def test_history_shows_a_confirmed_delete_action_for_each_cv(self):
@@ -184,8 +190,8 @@ class AIRouteTests(unittest.TestCase):
         page = self.client.get(f'/result/{self.cv_id}')
         self.assertEqual(page.status_code, 200)
         self.assertIn(b'85%', page.data)
-        self.assertIn('pas le texte de votre CV'.encode(), page.data)
-        self.assertIn('Description de l’offre d’emploi à cibler'.encode(), page.data)
+        self.assertIn('sans saisie ni copier-coller'.encode(), page.data)
+        self.assertNotIn('Description de l’offre d’emploi à cibler'.encode(), page.data)
         self.assertIn('Parlez-moi de votre dernier projet data.'.encode(), page.data)
         self.assertIn(b'Gloria', page.data)
         self.assertIn('Simulation d’entretien'.encode(), page.data)
@@ -295,6 +301,8 @@ class AIRouteTests(unittest.TestCase):
         self.assertIn(b'Analyste data Python SQL', page.data)
         self.assertIn(b'Comp\xc3\xa9tences communes : python, sql', page.data)
         self.assertIn(b'Analyser cette offre', page.data)
+        self.assertIn(b'sans saisie ni copier-coller', page.data)
+        self.assertNotIn(b'Collez ici', page.data)
         extraction.assert_called_once()
 
         selected_offer = (

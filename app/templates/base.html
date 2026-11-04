@@ -46,6 +46,20 @@
               Mes CV & simulations
             </a>
           </li>
+          <li>
+            <a href="{{ url_for('main.assistant') }}"
+               class="nav-link {% if request.endpoint == 'main.assistant' %}active{% endif %}"
+               id="nav-assistant">
+              CVBoost AI
+            </a>
+          </li>
+          <li>
+            <a href="{{ url_for('main.job_search') }}"
+               class="nav-link {% if request.endpoint == 'main.job_search' %}active{% endif %}"
+               id="nav-jobs">
+              Offres d’emploi
+            </a>
+          </li>
           <li class="nav-user-item">
             <div class="nav-avatar" aria-hidden="true">
               {{ current_user.prenom[0] | upper }}{{ current_user.nom[0] | upper }}

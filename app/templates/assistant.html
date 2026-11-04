@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}CVBoost AI – Assistant carrière{% endblock %}
+{% block content %}
+<section
+  class="page-section assistant-page"
+  id="assistantApp"
+  data-csrf-token="{{ csrf_token }}"
+  data-conversations-url="{{ url_for('main.assistant_conversations') }}"
+  data-conversation-url="{{ url_for('main.assistant_conversation', conversation_id=1) }}"
+  data-message-url="{{ url_for('main.assistant_send_message', conversation_id=1) }}"
+  data-audio-url="{{ url_for('main.assistant_transcribe_audio', conversation_id=1) }}"
+>
+  <header class="page-hd assistant-page-header">
+    <div>
+      <h1>CVBoost AI</h1>
+      <p>Votre assistant pour le CV, les candidatures et l’évolution professionnelle.</p>
+    </div>
+    <button class="btn btn-primary" type="button" id="assistantNewConversation">Nouvelle conversation</button>
+  </header>
+
+  <div class="assistant-layout">
+    <aside class="assistant-sidebar" aria-label="Historique des conversations">
+      <h2>Conversations</h2>
+      <div id="assistantConversationList">
+        {% for conversation in conversations %}
+          <button
+            class="assistant-conversation-link"
+            type="button"
+            data-conversation-id="{{ conversation.id }}"
+          >{{ conversation.title }}</button>
+        {% else %}
+          <p class="assistant-empty-list">Aucune conversation pour le moment.</p>
+        {% endfor %}
+      </div>
+    </aside>
+
+    <section class="assistant-chat" aria-label="Conversation avec CVBoost AI">
+      <div class="assistant-settings">
+        <label for="assistantLanguage">Langue</label>
+        <select id="assistantLanguage" class="form-control">
+          <option value="fr">Français</option>
+          <option value="ln">Lingala (texte; traduction NLLB requise)</option>
+        </select>
+        <label class="assistant-context-toggle">
+          <input type="checkbox" id="assistantUseContext">
+          Partager mon profil (nom et prénom) et mon CV dans cette conversation
+        </label>
+        <select id="assistantCv" class="form-control" aria-label="Choisir le CV">
+          <option value="">Choisir un CV</option>
+          {% for cv in cvs %}
+            <option value="{{ cv.id }}">{{ cv.filename_original }}</option>
+          {% endfor %}
+        </select>
+        <label class="assistant-context-toggle">
+          <input type="checkbox" id="assistantAutoSpeak">
+          Lire automatiquement les réponses
+        </label>
+        <button class="btn btn-danger btn-sm" type="button" id="assistantDeleteConversation" disabled>
+          Supprimer la conversation
+        </button>
+      </div>
+
+      <div class="assistant-messages" id="assistantMessages" aria-live="polite">
+        <p class="assistant-welcome">Choisissez une langue, puis démarrez une conversation avec CVBoost AI.</p>
+      </div>
+
+      <p class="assistant-status" id="assistantStatus" role="status" aria-live="polite"></p>
+      <form class="assistant-compose" id="assistantMessageForm">
+        <textarea
+          class="form-control"
+          id="assistantMessageInput"
+          rows="3"
+          maxlength="4000"
+          placeholder="Écrivez votre question…"
+          aria-label="Votre message à CVBoost AI"
+          required
+        ></textarea>
+        <div class="assistant-compose-actions">
+          <button class="btn btn-ghost" type="button" id="assistantRecordAudio">Enregistrer une question</button>
+          <button class="btn btn-primary" type="submit" id="assistantSendMessage">Envoyer</button>
+        </div>
+        <small>Votre audio sert uniquement à la transcription et n’est pas conservé. Le Lingala reste disponible en texte si le modèle NLLB local n’est pas configuré.</small>
+      </form>
+    </section>
+  </div>
+</section>
+<script src="{{ url_for('static', filename='js/assistant.js') }}" defer></script>
+{% endblock %}

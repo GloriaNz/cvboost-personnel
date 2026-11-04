@@ -51,7 +51,7 @@
             {% endif %}
 
             <a href="{{ url_for('main.result', cv_id=cv.id) }}"
-               class="btn btn-outline-blue btn-sm btn-ripple"
+               class="btn {{ 'btn-history-result-done' if cv.statut == 'Terminé' else 'btn-outline-blue' }} btn-sm btn-ripple"
                id="view-result-{{ cv.id }}">
               Visualiser
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
