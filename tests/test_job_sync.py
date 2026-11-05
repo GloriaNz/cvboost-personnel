@@ -2,10 +2,16 @@ import csv
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from app import create_app, db
 from app.models import JobOffer, JobSource, JobSyncRun, User
-from data_pipeline.job_sync import JobSyncError, import_csv, sync_job_rows
+from data_pipeline.job_sync import (
+    JobSyncError,
+    collect_api_source,
+    import_csv,
+    sync_job_rows,
+)
 
 
 class JobSyncTests(unittest.TestCase):
@@ -97,6 +103,31 @@ class JobSyncTests(unittest.TestCase):
             self.assertEqual(run.status, 'completed')
             self.assertEqual(run.added_count, 1)
             self.assertEqual(JobOffer.query.count(), 1)
+
+    def test_api_source_collection_syncs_normalized_jobs(self):
+        api_row = {
+            'title': 'Analyste Python',
+            'company': 'Entreprise distante',
+            'location': 'Remote',
+            'published_at': '2026-11-05',
+            'description': 'Analyse des données Python.',
+            'source_url': 'https://himalayas.app/jobs/data-analyst',
+            'reference': 'himalayas-1',
+        }
+        with self.app.app_context(), patch(
+            'data_pipeline.job_sync.fetch_source_jobs', return_value=[api_row]
+        ):
+            run = collect_api_source('himalayas', limit=5)
+
+            offer = JobOffer.query.filter_by(external_id='himalayas-1').one()
+            self.assertEqual(run.status, 'completed')
+            self.assertEqual(run.added_count, 1)
+            self.assertEqual(offer.source.slug, 'himalayas')
+            self.assertEqual(offer.title, 'Analyste Python')
+
+    def test_remotive_collection_requires_republication_approval(self):
+        with self.app.app_context(), self.assertRaisesRegex(JobSyncError, 'autorisation explicite'):
+            collect_api_source('remotive')
 
     def test_users_are_not_required_to_be_sources_or_admins_to_use_job_models(self):
         with self.app.app_context():

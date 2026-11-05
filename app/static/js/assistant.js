@@ -8,6 +8,7 @@
   const messageUrl = app.dataset.messageUrl;
   const audioUrl = app.dataset.audioUrl;
   const list = document.getElementById('assistantConversationList');
+  const conversationSearch = document.getElementById('assistantConversationSearch');
   const messages = document.getElementById('assistantMessages');
   const status = document.getElementById('assistantStatus');
   const form = document.getElementById('assistantMessageForm');
@@ -19,6 +20,7 @@
   const deleteButton = document.getElementById('assistantDeleteConversation');
   const recordButton = document.getElementById('assistantRecordAudio');
   let activeConversation;
+  let knownConversations = [];
   let mediaRecorder;
   let audioChunks = [];
   let audioRequestId = 0;
@@ -97,16 +99,36 @@
     messages.append(item);
   }
 
+  function showWelcome() {
+    const welcome = document.createElement('div');
+    welcome.className = 'assistant-welcome';
+    const avatar = document.createElement('span');
+    avatar.className = 'assistant-avatar';
+    avatar.setAttribute('aria-hidden', 'true');
+    avatar.textContent = 'C';
+    const greeting = document.createElement('strong');
+    greeting.textContent = 'Bonjour, comment puis-je vous aider ?';
+    welcome.append(avatar, greeting);
+    messages.append(welcome);
+  }
+
   function renderConversationList(conversations) {
+    knownConversations = conversations;
     list.replaceChildren();
-    if (!conversations.length) {
+    const query = conversationSearch.value.trim().toLocaleLowerCase();
+    const filtered = conversations.filter(conversation =>
+      conversation.title.toLocaleLowerCase().includes(query),
+    );
+    if (!filtered.length) {
       const empty = document.createElement('p');
       empty.className = 'assistant-empty-list';
-      empty.textContent = 'Aucune conversation pour le moment.';
+      empty.textContent = query
+        ? 'Aucune conversation ne correspond.'
+        : 'Aucune conversation pour le moment.';
       list.append(empty);
       return;
     }
-    for (const conversation of conversations) {
+    for (const conversation of filtered) {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'assistant-conversation-link';
@@ -157,10 +179,7 @@
     deleteButton.disabled = false;
     messages.replaceChildren();
     if (!conversation.messages.length) {
-      const welcome = document.createElement('p');
-      welcome.className = 'assistant-welcome';
-      welcome.textContent = 'Posez votre première question à CVBoostBot.';
-      messages.append(welcome);
+      showWelcome();
     } else {
       conversation.messages.forEach(renderMessage);
     }
@@ -192,15 +211,16 @@
     openConversation(Number(button.dataset.conversationId)).catch(error => setStatus(error.message, true));
   });
 
+  conversationSearch.addEventListener('input', () => {
+    renderConversationList(knownConversations);
+  });
+
   document.getElementById('assistantNewConversation').addEventListener('click', () => {
     activeConversation = undefined;
     deleteButton.disabled = true;
     setConversationSettingsEditable(true);
     messages.replaceChildren();
-    const welcome = document.createElement('p');
-    welcome.className = 'assistant-welcome';
-    welcome.textContent = 'Posez votre première question à CVBoostBot.';
-    messages.append(welcome);
+    showWelcome();
     input.focus();
     setStatus('Nouvelle conversation prête.');
   });
@@ -265,6 +285,13 @@
     } finally {
       sendButton.disabled = false;
       input.focus();
+    }
+  });
+
+  input.addEventListener('keydown', event => {
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+      event.preventDefault();
+      form.requestSubmit();
     }
   });
 

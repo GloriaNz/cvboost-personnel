@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from data_pipeline.job_matching import JobOffersError, rank_job_offers
+from data_pipeline.job_matching import JobOffersError, rank_job_offers, rank_job_records
 
 
 class JobMatchingTests(unittest.TestCase):
@@ -66,6 +66,22 @@ class JobMatchingTests(unittest.TestCase):
             rank_job_offers(self.path, 'CV avec Python.'),
             [],
         )
+
+    def test_ranks_normalized_records_from_added_job_sources(self):
+        jobs = rank_job_records([{
+            'title': 'Analyste Python SQL',
+            'company': 'Entreprise distante',
+            'location': 'Remote',
+            'description': 'Analyse des données avec Python et SQL.',
+            'published_at': '2026-11-05',
+            'source_name': 'Himalayas',
+            'source_url': 'https://himalayas.app/jobs/analyste-python',
+        }], 'Expérience professionnelle en Python et SQL.')
+
+        self.assertEqual(len(jobs), 1)
+        self.assertEqual(jobs[0]['matching_skills'], ['python', 'sql'])
+        self.assertEqual(jobs[0]['source_name'], 'Himalayas')
+        self.assertIn('Description : Analyse des données', jobs[0]['analysis_text'])
 
     def test_csv_without_title_column_is_rejected(self):
         self.path.write_text('company,description\nACME,Python\n', encoding='utf-8')

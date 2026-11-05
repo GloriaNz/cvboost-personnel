@@ -13,9 +13,8 @@
   <header class="page-hd assistant-page-header">
     <div>
       <h1>CVBoostBot</h1>
-      <p>Posez une question de carrière et cliquez sur « Envoyer » pour recevoir une réponse.</p>
+      <p>Assistant carrière</p>
     </div>
-    <button class="btn btn-primary" type="button" id="assistantNewConversation">Nouvelle conversation</button>
   </header>
 
   {% if not assistant_ready %}
@@ -24,15 +23,14 @@
     </p>
   {% endif %}
 
-  <p class="assistant-how-to">
-    <strong>Pour une réponse générale :</strong> écrivez votre question en bas, puis cliquez sur « Envoyer ».
-    <strong>Pour une réponse basée sur votre CV :</strong> ajoutez d’abord votre CV avec « Uploader », démarrez une nouvelle conversation,
-    cochez le partage du CV, puis sélectionnez le document. Le CV n’est partagé qu’avec votre accord.
-  </p>
-
   <div class="assistant-layout">
     <aside class="assistant-sidebar" aria-label="Historique des conversations">
-      <h2>Conversations</h2>
+      <div class="assistant-sidebar-heading">
+        <h2>Messages</h2>
+        <button class="btn btn-primary btn-sm" type="button" id="assistantNewConversation">Nouvelle conversation</button>
+      </div>
+      <label class="assistant-search-label" for="assistantConversationSearch">Rechercher une conversation</label>
+      <input class="form-control assistant-search" id="assistantConversationSearch" type="search" placeholder="Rechercher…">
       <div id="assistantConversationList">
         {% for conversation in conversations %}
           <button
@@ -47,36 +45,51 @@
     </aside>
 
     <section class="assistant-chat" aria-label="Conversation avec CVBoostBot">
-      <div class="assistant-settings">
-        <label for="assistantLanguage">Langue</label>
-        <select id="assistantLanguage" class="form-control">
-          <option value="fr">Français</option>
-          <option value="ln">Lingala (texte; traduction NLLB requise)</option>
-        </select>
-        <label class="assistant-context-toggle">
-          <input type="checkbox" id="assistantUseContext">
-          J’autorise le partage de mon profil et de mon CV dans cette conversation
-        </label>
-        <select id="assistantCv" class="form-control" aria-label="Choisir le CV">
-          <option value="">Choisir un CV</option>
-          {% for cv in cvs %}
-            <option value="{{ cv.id }}">{{ cv.filename_original }}</option>
-          {% endfor %}
-        </select>
-        {% if not cvs %}
-          <a class="assistant-upload-hint" href="{{ url_for('main.upload') }}">Aucun CV disponible — importer un CV</a>
-        {% endif %}
-        <label class="assistant-context-toggle">
-          <input type="checkbox" id="assistantAutoSpeak">
-          Lire automatiquement les réponses
-        </label>
-        <button class="btn btn-danger btn-sm" type="button" id="assistantDeleteConversation" disabled>
-          Supprimer la conversation
-        </button>
-      </div>
+      <header class="assistant-chat-topbar">
+        <div class="assistant-identity">
+          <span class="assistant-avatar" aria-hidden="true">C</span>
+          <div>
+            <strong>CVBoostBot</strong>
+            <span><i aria-hidden="true"></i> Assistant carrière</span>
+          </div>
+        </div>
+        <details class="assistant-options">
+          <summary aria-label="Paramètres de la conversation" title="Paramètres de la conversation">Paramètres</summary>
+          <div class="assistant-settings">
+            <label for="assistantLanguage">Langue</label>
+            <select id="assistantLanguage" class="form-control">
+              <option value="fr">Français</option>
+              <option value="ln">Lingala</option>
+            </select>
+            <label class="assistant-context-toggle">
+              <input type="checkbox" id="assistantUseContext">
+              J’autorise le partage de mon profil et de mon CV dans cette conversation
+            </label>
+            <select id="assistantCv" class="form-control" aria-label="Choisir le CV">
+              <option value="">Choisir un CV</option>
+              {% for cv in cvs %}
+                <option value="{{ cv.id }}">{{ cv.filename_original }}</option>
+              {% endfor %}
+            </select>
+            {% if not cvs %}
+              <a class="assistant-upload-hint" href="{{ url_for('main.upload') }}">Aucun CV disponible — importer un CV</a>
+            {% endif %}
+            <label class="assistant-context-toggle">
+              <input type="checkbox" id="assistantAutoSpeak">
+              Lire automatiquement les réponses
+            </label>
+            <button class="btn btn-danger btn-sm" type="button" id="assistantDeleteConversation" disabled>
+              Supprimer la conversation
+            </button>
+          </div>
+        </details>
+      </header>
 
       <div class="assistant-messages" id="assistantMessages" aria-live="polite">
-        <p class="assistant-welcome">Votre réponse apparaîtra ici. Posez une question ci-dessous pour commencer.</p>
+        <div class="assistant-welcome">
+          <span class="assistant-avatar" aria-hidden="true">C</span>
+          <strong>Bonjour, comment puis-je vous aider ?</strong>
+        </div>
       </div>
 
       <p class="assistant-status" id="assistantStatus" role="status" aria-live="polite"></p>
@@ -84,17 +97,16 @@
         <textarea
           class="form-control"
           id="assistantMessageInput"
-          rows="3"
+          rows="1"
           maxlength="4000"
           placeholder="Écrivez votre question…"
           aria-label="Votre message à CVBoostBot"
           required
         ></textarea>
         <div class="assistant-compose-actions">
-          <button class="btn btn-ghost" type="button" id="assistantRecordAudio">Enregistrer une question</button>
+          <button class="btn btn-ghost" type="button" id="assistantRecordAudio" title="Enregistrer un message vocal">Message vocal</button>
           <button class="btn btn-primary" type="submit" id="assistantSendMessage">Envoyer</button>
         </div>
-        <small>Votre audio sert uniquement à la transcription et n’est pas conservé. Le Lingala reste disponible en texte si le modèle NLLB local n’est pas configuré.</small>
       </form>
     </section>
   </div>

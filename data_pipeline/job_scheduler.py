@@ -4,7 +4,12 @@ import time
 
 from app import create_app, db
 from app.job_alerts import JobAlertConfigurationError, send_matching_job_alerts
-from data_pipeline.job_sync import JobSyncError, collect_mediacongo, import_csv, refresh_expired_offers
+from data_pipeline.job_sync import (
+    JobSyncError,
+    collect_enabled_sources,
+    import_csv,
+    refresh_expired_offers,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -23,23 +28,34 @@ def _interval(value):
 def _run_once(app, limit, input_csv=None):
     with app.app_context():
         db.create_all()
-        run = import_csv(input_csv) if input_csv else collect_mediacongo(limit=limit)
+        if input_csv:
+            runs = [import_csv(input_csv)]
+            failures = []
+        else:
+            runs, failures = collect_enabled_sources(limit=limit)
+            if not runs:
+                raise JobSyncError('Aucune source d’emploi n’a pu être synchronisée.')
         expired_count = refresh_expired_offers()
         try:
             alert_count = send_matching_job_alerts()
         except JobAlertConfigurationError as error:
             logger.warning('%s', error)
             alert_count = 0
+        for run in runs:
+            print(
+                f'{run.source.name} : {run.fetched_count} récupérées, '
+                f'{run.added_count} ajoutées, {run.updated_count} mises à jour.'
+            )
+        for source_slug, message in failures:
+            logger.warning('Source %s ignorée : %s', source_slug, message)
         print(
-            f'Synchronisation {run.source.name} terminée : {run.fetched_count} récupérées, '
-            f'{run.added_count} ajoutées, {run.updated_count} mises à jour, '
-            f'{expired_count} expirées, {alert_count} alertes e-mail envoyées.'
+            f'{expired_count} offres expirées, {alert_count} alertes e-mail envoyées.'
         )
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Synchronise les offres MediaCongo dans la base CVBoost.'
+        description='Synchronise les offres d’emploi configurées dans la base CVBoost.'
     )
     parser.add_argument('--limit', type=int, default=50, help='Nombre maximal d’offres à collecter.')
     parser.add_argument(

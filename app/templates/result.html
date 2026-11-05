@@ -189,6 +189,7 @@
             <div>
               <h3>{{ job.title }}</h3>
               <p>{{ job.company or 'Entreprise non précisée' }} · {{ job.location or 'Lieu non précisé' }}</p>
+              {% if job.source_name %}<p class="result-ph">Source : {{ job.source_name }}</p>{% endif %}
               {% if job.published_at %}<p class="result-ph">Publication : {{ job.published_at }}</p>{% endif %}
               {% if job.salary %}<p class="result-ph">Rémunération : {{ job.salary }}</p>{% endif %}
               {% if job.matching_skills %}

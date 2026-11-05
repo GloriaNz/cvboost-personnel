@@ -13,6 +13,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app import db
 from data_pipeline.job_matching import MAX_JOB_FILE_BYTES, MAX_JOB_ROWS
+from data_pipeline.job_sources import SOURCE_CATALOG, JobSourceError, fetch_source_jobs
 from app.models import JobOffer, JobSource, JobSyncRun, utc_now
 from data_pipeline.pandas_cleaning import extract_skills, normalize_text
 
@@ -35,6 +36,19 @@ def _safe_source_url(value, source_slug):
     parsed = urlparse(normalize_text(value))
     allowed_hosts = {
         'mediacongo': {'mediacongo.net', 'www.mediacongo.net'},
+        'adzuna': {
+            'adzuna.com', 'www.adzuna.com', 'adzuna.co.uk', 'www.adzuna.co.uk',
+            'adzuna.co.za', 'www.adzuna.co.za', 'adzuna.com.au', 'www.adzuna.com.au',
+            'adzuna.ca', 'www.adzuna.ca', 'adzuna.fr', 'www.adzuna.fr',
+            'adzuna.de', 'www.adzuna.de', 'adzuna.it', 'www.adzuna.it',
+            'adzuna.nl', 'www.adzuna.nl', 'adzuna.es', 'www.adzuna.es',
+            'adzuna.in', 'www.adzuna.in', 'adzuna.br', 'www.adzuna.br',
+            'adzuna.pl', 'www.adzuna.pl', 'adzuna.ru', 'www.adzuna.ru',
+            'adzuna.co.nz', 'www.adzuna.co.nz',
+        },
+        'himalayas': {'himalayas.app', 'www.himalayas.app'},
+        'jobicy': {'jobicy.com', 'www.jobicy.com', 'jobi.cy', 'www.jobi.cy'},
+        'remotive': {'remotive.com', 'www.remotive.com'},
     }
     if (
         source_slug not in allowed_hosts
@@ -145,10 +159,18 @@ def _normalize_job(row, source_slug):
 
 
 def _ensure_mediacongo_source():
-    source = JobSource.query.filter_by(slug=MEDIACONGO_SOURCE['slug']).first()
+    return _ensure_job_source(MEDIACONGO_SOURCE)
+
+
+def _ensure_job_source(source_data):
+    source = JobSource.query.filter_by(slug=source_data['slug']).first()
     if source is None:
-        source = JobSource(**MEDIACONGO_SOURCE)
+        source = JobSource(**source_data)
         db.session.add(source)
+        db.session.commit()
+    elif source.name != source_data['name'] or source.base_url != source_data['base_url']:
+        source.name = source_data['name']
+        source.base_url = source_data['base_url']
         db.session.commit()
     return source
 
@@ -273,6 +295,70 @@ def collect_mediacongo(limit=50):
             'La collecte MediaCongo a échoué ; vérifiez la connexion et les règles de collecte.'
         ) from error
     return sync_job_rows(source, rows, run)
+
+
+def collect_api_source(source_slug, limit=50):
+    source_data = SOURCE_CATALOG.get(source_slug)
+    if source_data is None:
+        raise JobSyncError(f'Source d’emploi inconnue : {source_slug}.')
+    if source_slug == 'remotive' and not current_app.config.get('REMOTIVE_COLLECTION_APPROVED'):
+        raise JobSyncError(
+            'Remotive n’est pas synchronisé sans autorisation explicite : ses conditions '
+            'limitent la republication des offres sur des sites tiers.'
+        )
+    source = _ensure_job_source({'slug': source_slug, **source_data})
+    run = JobSyncRun(source_id=source.id)
+    db.session.add(run)
+    db.session.commit()
+    try:
+        rows = fetch_source_jobs(source_slug, current_app.config, limit=limit)
+    except (requests.RequestException, JobSourceError, ValueError) as error:
+        _mark_run_failed(run, f'Échec de la collecte ({type(error).__name__}).')
+        logger.warning('Job collection failed for source %s (%s).', source_slug, type(error).__name__)
+        raise JobSyncError(
+            f'La collecte {source.name} a échoué ; les annonces déjà enregistrées sont conservées.'
+        ) from error
+    return sync_job_rows(source, rows, run)
+
+
+def collect_enabled_sources(limit=50):
+    source_slugs = current_app.config.get(
+        'JOB_SOURCE_SLUGS',
+        ('remotive', 'himalayas', 'jobicy', 'adzuna'),
+    )
+    if isinstance(source_slugs, str):
+        source_slugs = tuple(
+            source_slug.strip()
+            for source_slug in source_slugs.split(',')
+            if source_slug.strip()
+        )
+    if (
+        current_app.config.get('ADZUNA_APP_ID')
+        and current_app.config.get('ADZUNA_APP_KEY')
+        and 'adzuna' not in source_slugs
+    ):
+        source_slugs = (*source_slugs, 'adzuna')
+    if (
+        current_app.config.get('REMOTIVE_COLLECTION_APPROVED')
+        and 'remotive' not in source_slugs
+    ):
+        source_slugs = (*source_slugs, 'remotive')
+    if current_app.config.get('MEDIACONGO_COLLECTION_APPROVED'):
+        source_slugs = (*source_slugs, 'mediacongo')
+
+    runs = []
+    failures = []
+    for source_slug in dict.fromkeys(source_slugs):
+        try:
+            run = (
+                collect_mediacongo(limit=limit)
+                if source_slug == 'mediacongo'
+                else collect_api_source(source_slug, limit=limit)
+            )
+            runs.append(run)
+        except JobSyncError as error:
+            failures.append((source_slug, str(error)))
+    return runs, failures
 
 
 def refresh_expired_offers():

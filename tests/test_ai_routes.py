@@ -9,7 +9,7 @@ from unittest.mock import patch
 from werkzeug.security import generate_password_hash
 
 from app import create_app, db
-from app.models import AIAnalysis, CV, User
+from app.models import AIAnalysis, CV, JobOffer, JobSource, User
 
 
 class AIRouteTests(unittest.TestCase):
@@ -347,6 +347,37 @@ class AIRouteTests(unittest.TestCase):
             )
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'GROQ_API_KEY est manquante', response.data)
+
+    def test_cv_result_recommends_active_database_offers_by_shared_skills(self):
+        with self.app.app_context():
+            source = JobSource(
+                slug='himalayas',
+                name='Himalayas',
+                base_url='https://himalayas.app/jobs/api',
+            )
+            db.session.add(source)
+            db.session.flush()
+            db.session.add(JobOffer(
+                source_id=source.id,
+                external_id='himalayas-1',
+                source_url='https://himalayas.app/jobs/data-analyst',
+                content_hash='h' * 64,
+                title='Analyste Python SQL',
+                company='Entreprise distante',
+                description='Analyse des données avec Python et SQL.',
+                skills_json='["python", "sql"]',
+                location='Remote',
+                status='active',
+            ))
+            db.session.commit()
+
+        with patch('app.routes.extract_cv_text', return_value='Expérience en Python et SQL.'):
+            response = self.client.get(f'/result/{self.cv_id}')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('Analyste Python SQL'.encode(), response.data)
+        self.assertIn(b'Source : Himalayas', response.data)
+        self.assertIn(b'python, sql', response.data)
 
     def test_tenth_answer_is_saved_without_generating_an_eleventh_question(self):
         with self.app.app_context():

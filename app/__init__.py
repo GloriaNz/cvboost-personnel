@@ -28,6 +28,10 @@ def create_app(test_config=None):
         ),
         GROQ_API_KEY=os.environ.get('GROQ_API_KEY'),
         GROQ_MODEL=os.environ.get('GROQ_MODEL', 'qwen/qwen3.8-27b'),
+        GROQ_TRANSLATION_MODEL=os.environ.get(
+            'GROQ_TRANSLATION_MODEL',
+            os.environ.get('GROQ_MODEL', 'qwen/qwen3.8-27b'),
+        ),
         GROQ_TRANSCRIPTION_MODEL=os.environ.get(
             'GROQ_TRANSCRIPTION_MODEL',
             'whisper-large-v3-turbo',
@@ -64,6 +68,21 @@ def create_app(test_config=None):
         MEDIACONGO_COLLECTION_APPROVED=(
             os.environ.get('MEDIACONGO_COLLECTION_APPROVED', '').lower() == 'true'
         ),
+        REMOTIVE_COLLECTION_APPROVED=(
+            os.environ.get('REMOTIVE_COLLECTION_APPROVED', '').lower() == 'true'
+        ),
+        JOB_SOURCE_SLUGS=tuple(
+            slug.strip()
+            for slug in os.environ.get(
+                'JOB_SOURCE_SLUGS',
+                'himalayas,jobicy',
+            ).split(',')
+            if slug.strip()
+        ),
+        ADZUNA_APP_ID=os.environ.get('ADZUNA_APP_ID', ''),
+        ADZUNA_APP_KEY=os.environ.get('ADZUNA_APP_KEY', ''),
+        ADZUNA_COUNTRY=os.environ.get('ADZUNA_COUNTRY', 'za'),
+        ADZUNA_QUERY=os.environ.get('ADZUNA_QUERY', 'jobs'),
         JOB_ALERTS_ENABLED=os.environ.get('JOB_ALERTS_ENABLED', '').lower() == 'true',
         JOB_ALERT_SMTP_HOST=os.environ.get('JOB_ALERT_SMTP_HOST', ''),
         JOB_ALERT_SMTP_PORT=int(os.environ.get('JOB_ALERT_SMTP_PORT', '587')),

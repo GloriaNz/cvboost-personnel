@@ -249,12 +249,17 @@ Les routes JSON sont :
 * `POST /api/assistant/conversations/<id>/audio` : transcrire temporairement un
   audio français via Groq Whisper ; le fichier n'est pas conservé.
 
-Toutes les modifications d'état demandent le jeton CSRF de la page. Pour le
-Lingala, l'application attend l'adaptateur NLLB-LoRA déjà entraîné et le modèle
-de base disponibles localement. Aucun poids de modèle n'est inclus au dépôt et
-aucun téléchargement automatique ni réentraînement n'est effectué. Installer
-les dépendances optionnelles après avoir choisi la version PyTorch adaptée à la
-machine :
+Toutes les modifications d'état demandent le jeton CSRF de la page. Le chat
+traduit les messages Lingala avec `GROQ_TRANSLATION_MODEL` (par défaut
+`GROQ_MODEL`) et demande explicitement le lingala standard de Kinshasa. Si Groq
+est indisponible, il essaie l'adaptateur NLLB-LoRA local. La qualité d'une
+traduction automatique peut varier; le texte reste visible et l'utilisateur peut
+revenir au français. La dictée audio Lingala n'est pas prise en charge.
+
+L'adaptateur NLLB est facultatif. Aucun poids n'est inclus au dépôt et aucun
+téléchargement automatique ni réentraînement n'est effectué. Installer ses
+dépendances seulement si le repli local est souhaité, après avoir choisi la
+version PyTorch adaptée à la machine :
 
 ```powershell
 pip install -r requirements-translation.txt
@@ -286,11 +291,9 @@ par défaut `ai_engine/models/nllb-lora-lin-fra` correspond au dossier local
 après extraction. Le modèle de base NLLB doit également être présent dans le
 cache local de Hugging Face : l'application charge les modèles avec
 `local_files_only=True` et ne télécharge aucun poids automatiquement. En
-l'absence du modèle de base ou de l'adaptateur, la conversation française reste
-opérationnelle et l'interface indique que la traduction Lingala n'est pas
-disponible. La dictée et la lecture vocale Lingala ne sont pas annoncées comme prises en charge :
-la transcription utilise le service français et la lecture dépend des voix
-Lingala réellement installées dans le navigateur.
+l'absence de Groq et du modèle local, les échanges français restent
+opérationnels et le chat signale que la traduction est indisponible. La lecture
+vocale Lingala dépend des voix réellement installées dans le navigateur.
 
 Lancer les tests ciblés avec :
 
@@ -357,12 +360,11 @@ les champs texte, normalise les fourchettes de salaire sans mélanger USD et CDF
 convertit les dates et produit la liste ainsi que les colonnes indicatrices des
 compétences reconnues.
 
-Le fichier nettoyé `data_pipeline/jobs_clean.csv` est lu localement sur la page
-de résultat du CV. CVBoost classe les offres par mots-clés de compétences
-communs, sans fabriquer un score de compatibilité ; choisissez une annonce pour
-préremplir et lancer l'analyse IA. Le fichier peut être déplacé avec
-`JOB_OFFERS_FILE` dans `.env`. Les descriptions absentes ou trop longues sont
-signalées et ne sont pas envoyées à l'analyse.
+Les offres actives synchronisées en base sont classées sur la page de résultat
+du CV par compétences reconnues en commun, sans fabriquer un score de
+compatibilité ; choisissez une annonce pour préremplir et lancer l'analyse IA.
+Le CSV `data_pipeline/jobs_clean.csv`, configurable avec `JOB_OFFERS_FILE`, reste
+le repli si aucune offre synchronisée n'est disponible.
 
 #### Recherche persistante et synchronisation
 
@@ -376,10 +378,19 @@ envoyée au formulaire d'analyse CV existant. Les nouvelles tables `job_sources`
 `job_offers`, `job_sync_runs`, `job_alert_preferences` et `job_alert_deliveries`
 sont ajoutées sans supprimer les tables existantes.
 
-Seul le connecteur MediaCongo déjà présent est activé. Il conserve son contrôle
-`robots.txt`, son délai minimum et les liens limités à `mediacongo.net`. Une
-collecte périodique doit être exécutée dans un processus distinct du serveur web,
-afin d'éviter une synchronisation par worker Gunicorn :
+Les connecteurs API Himalayas et Jobicy sont synchronisés dans la base par
+défaut. Adzuna est ajouté dès que `ADZUNA_APP_ID` et `ADZUNA_APP_KEY` sont
+configurés; `ADZUNA_COUNTRY` choisit
+le pays (par défaut `za`) et `ADZUNA_QUERY` le terme de recherche. Jobicy exige
+une attribution visible et un lien direct vers son annonce; le résultat CV affiche
+la source. Remotive est disponible mais désactivé tant que ses conditions de
+réutilisation n'autorisent pas explicitement l'affichage sur CVBoost : activer
+avec `REMOTIVE_COLLECTION_APPROVED=true` uniquement après obtention de cette
+autorisation. MediaCongo conserve son contrôle `robots.txt`, son délai minimum et
+son accord `MEDIACONGO_COLLECTION_APPROVED=true`.
+
+Une collecte périodique doit être exécutée dans un processus distinct du serveur
+web, afin d'éviter une synchronisation par worker Gunicorn :
 
 ```powershell
 python -m data_pipeline.job_scheduler
@@ -387,9 +398,13 @@ python -m data_pipeline.job_scheduler --input-csv data_pipeline/jobs_clean.csv
 python -m data_pipeline.job_scheduler --interval-hours 4
 ```
 
-Le premier appel collecte MediaCongo ; le second importe les données locales ;
-le dernier répète la collecte à l'intervalle choisi (2 à 4 heures). Le processus
-peut être arrêté avec Ctrl+C. `JOB_ADMIN_EMAILS` accepte une liste d'adresses
+Le premier appel interroge les sources configurées ; le second importe les
+données locales ; le dernier répète la synchronisation à l'intervalle choisi
+(2 à 4 heures). `JOB_SOURCE_SLUGS` peut limiter la liste, par exemple
+`himalayas,jobicy`. Les offres du CSV et les nouvelles annonces sont ensuite
+comparées au CV après l'upload. Les flux sont mis à jour à chaque exécution, pas
+à chaque visite. Le processus peut être arrêté avec Ctrl+C.
+`JOB_ADMIN_EMAILS` accepte une liste d'adresses
 séparées par des virgules pour accéder à `/admin/job-intelligence`. Les alertes
 ne sont envoyées qu'aux utilisateurs qui les activent et pour les offres
 ajoutées après la dernière mise à jour de leurs préférences. La livraison est

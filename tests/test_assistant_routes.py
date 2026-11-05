@@ -9,6 +9,7 @@ from docx import Document
 from werkzeug.security import generate_password_hash
 
 from app import create_app, db
+from app.assistant_service import TranslationUnavailableError
 from app.models import AssistantConversation, AssistantMessage, CV, User
 
 
@@ -115,7 +116,7 @@ class AssistantRouteTests(unittest.TestCase):
         self.assertNotIn(b'CVBoost AI', response.data)
         self.assertIn(b'J\xe2\x80\x99autorise le partage de mon profil et de mon CV', response.data)
         self.assertIn(b'Lingala', response.data)
-        self.assertIn(b'Pour une r\xc3\xa9ponse bas\xc3\xa9e sur votre CV', response.data)
+        self.assertIn(b'J\xe2\x80\x99autorise le partage de mon profil et de mon CV', response.data)
         self.assertNotIn(b'GROQ_API_KEY', response.data)
 
     def test_assistant_page_links_to_cv_upload_when_user_has_no_cv(self):
@@ -264,10 +265,13 @@ class AssistantRouteTests(unittest.TestCase):
             generate_reply.call_args.args[0][-1]['content'],
         )
 
-    def test_lingala_message_uses_nllb_and_reports_missing_local_adapter(self):
+    def test_lingala_message_reports_unavailable_translation_providers(self):
         csrf = self.csrf_token()
         conversation_id = self.create_conversation(csrf, language='ln')
-        with patch('app.routes.generate_reply') as generate_reply:
+        with patch(
+            'app.assistant_service._translate_with_groq',
+            side_effect=TranslationUnavailableError('Groq translation unavailable.'),
+        ), patch('app.routes.generate_reply') as generate_reply:
             response = self.client.post(
                 f'/api/assistant/conversations/{conversation_id}/messages',
                 json={'message': 'Mbote'},
@@ -275,8 +279,27 @@ class AssistantRouteTests(unittest.TestCase):
             )
 
         self.assertEqual(response.status_code, 503)
-        self.assertIn('NLLB-LoRA', response.json['error'])
+        self.assertIn('Groq ou configurez', response.json['error'])
         generate_reply.assert_not_called()
+
+    def test_lingala_chat_uses_groq_translation_in_both_directions(self):
+        csrf = self.csrf_token()
+        conversation_id = self.create_conversation(csrf, language='ln')
+        with patch(
+            'app.assistant_service._translate_with_groq',
+            side_effect=['Bonjour', 'Mbote, nazali awa.'],
+        ) as translator, patch(
+            'app.routes.generate_reply', return_value='Bonjour, comment puis-je aider ?'
+        ):
+            response = self.client.post(
+                f'/api/assistant/conversations/{conversation_id}/messages',
+                json={'message': 'Mbote'},
+                headers={'X-CSRFToken': csrf},
+            )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json['assistant_message']['content'], 'Mbote, nazali awa.')
+        self.assertEqual(translator.call_count, 2)
 
     def test_rate_limit_is_per_user_and_returns_429(self):
         self.app.config['ASSISTANT_RATE_LIMIT_PER_MINUTE'] = 1

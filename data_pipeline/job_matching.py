@@ -8,6 +8,13 @@ from data_pipeline.pandas_cleaning import extract_skills, normalize_text
 MAX_JOB_FILE_BYTES = 10 * 1024 * 1024
 MAX_JOB_ROWS = 2000
 MAX_ANALYSIS_TEXT_LENGTH = 12000
+ALLOWED_JOB_HOSTS = {
+    'adzuna.com',
+    'himalayas.app',
+    'jobicy.com',
+    'mediacongo.net',
+    'remotive.com',
+}
 
 
 class JobOffersError(RuntimeError):
@@ -38,12 +45,56 @@ def _safe_source_url(value):
     parsed = urlparse(value)
     if (
         parsed.scheme not in {'http', 'https'}
-        or parsed.hostname not in {'mediacongo.net', 'www.mediacongo.net'}
+        or not parsed.hostname
+        or not any(
+            parsed.hostname == host or parsed.hostname.endswith(f'.{host}')
+            for host in ALLOWED_JOB_HOSTS
+        )
         or parsed.username
         or parsed.password
     ):
         return ''
-    return value
+    return parsed.geturl()
+
+
+def rank_job_records(records, cv_text, limit=10):
+    cv_skills = set(extract_skills(cv_text))
+    jobs = []
+    for row_number, row in enumerate(records, start=1):
+        title = normalize_text(row.get('title', ''))
+        if not title:
+            continue
+        description = normalize_text(row.get('description', ''))
+        skills = extract_skills(' '.join((
+            title,
+            description,
+            normalize_text(row.get('skills', '')),
+        )))
+        job = {
+            'title': title,
+            'company': normalize_text(row.get('company', '')),
+            'location': normalize_text(row.get('location', '')),
+            'published_at': normalize_text(
+                row.get('published_date') or row.get('published_at', '')
+            ),
+            'salary': normalize_text(row.get('salary', '')),
+            'description': description,
+            'skills': skills,
+            'matching_skills': sorted(cv_skills.intersection(skills)),
+            'source_url': _safe_source_url(normalize_text(row.get('source_url', ''))),
+            'source_name': normalize_text(row.get('source_name', '')),
+            'position': row_number,
+        }
+        try:
+            job['analysis_text'] = _analysis_text(job)
+            job['analysis_error'] = ''
+        except JobOffersError as error:
+            job['analysis_text'] = ''
+            job['analysis_error'] = str(error)
+        jobs.append(job)
+
+    jobs.sort(key=lambda job: (-len(job['matching_skills']), job['position']))
+    return jobs[:limit]
 
 
 def rank_job_offers(path, cv_text, limit=10):
@@ -57,8 +108,7 @@ def rank_job_offers(path, cv_text, limit=10):
     if source_size > MAX_JOB_FILE_BYTES:
         raise JobOffersError('Le fichier des offres dépasse la limite de 10 Mo.')
 
-    cv_skills = set(extract_skills(cv_text))
-    jobs = []
+    rows = []
     try:
         with source.open('r', encoding='utf-8-sig', newline='') as csv_file:
             reader = csv.DictReader(csv_file)
@@ -69,38 +119,8 @@ def rank_job_offers(path, cv_text, limit=10):
                     raise JobOffersError(
                         f'Le CSV dépasse la limite de {MAX_JOB_ROWS} offres.'
                     )
-                title = normalize_text(row.get('title', ''))
-                if not title:
-                    continue
-                description = normalize_text(row.get('description', ''))
-                skills = extract_skills(' '.join((
-                    title,
-                    description,
-                    normalize_text(row.get('skills', '')),
-                )))
-                job = {
-                    'title': title,
-                    'company': normalize_text(row.get('company', '')),
-                    'location': normalize_text(row.get('location', '')),
-                    'published_at': normalize_text(
-                        row.get('published_date') or row.get('published_at', '')
-                    ),
-                    'salary': normalize_text(row.get('salary', '')),
-                    'description': description,
-                    'skills': skills,
-                    'matching_skills': sorted(cv_skills.intersection(skills)),
-                    'source_url': _safe_source_url(normalize_text(row.get('source_url', ''))),
-                    'position': row_number,
-                }
-                try:
-                    job['analysis_text'] = _analysis_text(job)
-                    job['analysis_error'] = ''
-                except JobOffersError as error:
-                    job['analysis_text'] = ''
-                    job['analysis_error'] = str(error)
-                jobs.append(job)
+                rows.append(row)
     except (OSError, UnicodeError, csv.Error) as error:
         raise JobOffersError('Impossible de lire le fichier CSV des offres.') from error
 
-    jobs.sort(key=lambda job: (-len(job['matching_skills']), job['position']))
-    return jobs[:limit]
+    return rank_job_records(rows, cv_text, limit=limit)

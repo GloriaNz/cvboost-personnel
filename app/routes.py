@@ -59,7 +59,7 @@ from app.assistant_service import (
     translate_text,
 )
 from app.job_alerts import job_alert_mail_configured
-from data_pipeline.job_matching import JobOffersError, rank_job_offers
+from data_pipeline.job_matching import JobOffersError, rank_job_offers, rank_job_records
 from data_pipeline.pandas_cleaning import SKILL_KEYWORDS, extract_skills
 
 main = Blueprint('main', __name__)
@@ -790,15 +790,38 @@ def result(cv_id):
     job_offers = []
     job_offers_error = None
     job_offers_path = current_app.config['JOB_OFFERS_FILE']
-    if os.path.isfile(job_offers_path):
-        try:
-            cv_path = os.path.join(current_app.config['UPLOAD_FOLDER'], cv.filename_stored)
-            extension = cv.filename_stored.rsplit('.', 1)[-1].lower()
-            cv_text = extract_cv_text(cv_path, extension)
-            job_offers = rank_job_offers(job_offers_path, cv_text, limit=2000)
-        except (DocumentExtractionError, JobOffersError) as error:
-            job_offers_error = str(error)
-            logger.warning('Offres non disponibles pour le document %s: %s', cv.id, error)
+    try:
+        cv_path = os.path.join(current_app.config['UPLOAD_FOLDER'], cv.filename_stored)
+        extension = cv.filename_stored.rsplit('.', 1)[-1].lower()
+        cv_text = extract_cv_text(cv_path, extension)
+        today = date.today()
+        active_offers = JobOffer.query.join(JobSource).filter(
+            JobOffer.status == 'active',
+            JobSource.enabled.is_(True),
+            or_(JobOffer.deadline.is_(None), JobOffer.deadline >= today),
+        ).order_by(
+            JobOffer.published_at.desc().nullslast(),
+            JobOffer.first_seen_at.desc(),
+        ).limit(2000).all()
+        if active_offers:
+            job_offers = rank_job_records([
+                {
+                    'title': offer.title,
+                    'company': offer.company,
+                    'location': offer.location,
+                    'published_at': offer.published_at.isoformat() if offer.published_at else '',
+                    'description': offer.description,
+                    'skills': ', '.join(json.loads(offer.skills_json or '[]')),
+                    'source_url': offer.source_url,
+                    'source_name': offer.source.name,
+                }
+                for offer in active_offers
+            ], cv_text, limit=20)
+        elif os.path.isfile(job_offers_path):
+            job_offers = rank_job_offers(job_offers_path, cv_text, limit=20)
+    except (DocumentExtractionError, JobOffersError, ValueError) as error:
+        job_offers_error = str(error)
+        logger.warning('Offres non disponibles pour le document %s: %s', cv.id, error)
     return render_template(
         'result.html',
         cv=cv,
