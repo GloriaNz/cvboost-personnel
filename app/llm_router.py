@@ -21,6 +21,11 @@ DEFAULT_MISTRAL_MODEL = "mistral-small-latest"
 GEMINI_OPENAI_COMPAT_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
 MISTRAL_CHAT_URL = "https://api.mistral.ai/v1/chat/completions"
 
+# Limites prudentes pour éviter les erreurs de quota côté Render / modèles gratuits.
+# On force une sortie courte pour les réponses JSON, car le message d'erreur Groq montrait
+# exactement une dépassement de budget en sortie tokens.
+MAX_OUTPUT_TOKENS = 700
+
 
 class LLMProviderError(RuntimeError):
     """Erreur générique d'un fournisseur LLM."""
@@ -44,6 +49,26 @@ def is_quota_error(status_code: Optional[int], error_text: str) -> bool:
     return any(keyword in lowered for keyword in quota_keywords)
 
 
+def _build_provider_payload(
+    messages: List[Dict[str, str]],
+    model: str,
+    temperature: float,
+    json_mode: bool,
+    max_tokens: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Construit un payload cohérent selon le fournisseur."""
+    payload: Dict[str, Any] = {
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+    }
+    if max_tokens is not None:
+        payload["max_tokens"] = max_tokens
+    if json_mode:
+        payload["response_format"] = {"type": "json_object"}
+    return payload
+
+
 def _call_gemini(
     messages: List[Dict[str, str]],
     api_key: str,
@@ -51,19 +76,20 @@ def _call_gemini(
     temperature: float = 0.2,
     json_mode: bool = False,
     timeout: float = 40.0,
+    max_tokens: int = MAX_OUTPUT_TOKENS,
 ) -> str:
     """Appel à l'API Gemini (via endpoint compatible OpenAI officiel de Google)."""
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
-    payload: Dict[str, Any] = {
-        "model": model or DEFAULT_GEMINI_MODEL,
-        "messages": messages,
-        "temperature": temperature,
-    }
-    if json_mode:
-        payload["response_format"] = {"type": "json_object"}
+    payload = _build_provider_payload(
+        messages=messages,
+        model=model or DEFAULT_GEMINI_MODEL,
+        temperature=temperature,
+        json_mode=json_mode,
+        max_tokens=max_tokens,
+    )
 
     try:
         response = requests.post(
@@ -98,6 +124,7 @@ def _call_groq(
     temperature: float = 0.2,
     json_mode: bool = False,
     timeout: float = 40.0,
+    max_tokens: int = MAX_OUTPUT_TOKENS,
 ) -> str:
     """Appel à l'API Groq (supporte le mock de app.ia.Groq dans les tests)."""
     import sys
@@ -115,6 +142,7 @@ def _call_groq(
             "model": model or DEFAULT_GROQ_MODEL,
             "messages": messages,
             "temperature": temperature,
+            "max_tokens": max_tokens,
         }
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
@@ -139,19 +167,20 @@ def _call_mistral(
     temperature: float = 0.2,
     json_mode: bool = False,
     timeout: float = 40.0,
+    max_tokens: int = MAX_OUTPUT_TOKENS,
 ) -> str:
     """Appel à l'API Mistral AI (via endpoint chat officiel)."""
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
-    payload: Dict[str, Any] = {
-        "model": model or DEFAULT_MISTRAL_MODEL,
-        "messages": messages,
-        "temperature": temperature,
-    }
-    if json_mode:
-        payload["response_format"] = {"type": "json_object"}
+    payload = _build_provider_payload(
+        messages=messages,
+        model=model or DEFAULT_MISTRAL_MODEL,
+        temperature=temperature,
+        json_mode=json_mode,
+        max_tokens=max_tokens,
+    )
 
     try:
         response = requests.post(
@@ -211,9 +240,7 @@ def call_llm_with_fallback(
 
     errors_summary: List[str] = []
 
-    # ─────────────────────────────────────────────────────────────
-    # 1. TENTATIVE GEMINI (Priorité 1)
-    # ─────────────────────────────────────────────────────────────
+    # 1. TENTATIVE GEMINI
     if gemini_key:
         try:
             logger.info("Tentative de génération LLM via Gemini (modèle: %s)...", gemini_model)
@@ -223,6 +250,7 @@ def call_llm_with_fallback(
                 model=gemini_model,
                 temperature=temperature,
                 json_mode=json_mode,
+                max_tokens=MAX_OUTPUT_TOKENS,
             )
             return content, "gemini"
         except (LLMQuotaExceededError, LLMProviderError, Exception) as exc:
@@ -232,9 +260,7 @@ def call_llm_with_fallback(
     else:
         logger.debug("GEMINI_API_KEY non renseignée, passage à Groq.")
 
-    # ─────────────────────────────────────────────────────────────
-    # 2. TENTATIVE GROQ (Priorité 2)
-    # ─────────────────────────────────────────────────────────────
+    # 2. TENTATIVE GROQ
     if groq_key:
         try:
             logger.info("Tentative de génération LLM via Groq (modèle: %s)...", groq_model)
@@ -244,6 +270,7 @@ def call_llm_with_fallback(
                 model=groq_model,
                 temperature=temperature,
                 json_mode=json_mode,
+                max_tokens=MAX_OUTPUT_TOKENS,
             )
             return content, "groq"
         except (LLMQuotaExceededError, LLMProviderError, Exception) as exc:
@@ -253,9 +280,7 @@ def call_llm_with_fallback(
     else:
         logger.debug("GROQ_API_KEY non renseignée, passage à Mistral.")
 
-    # ─────────────────────────────────────────────────────────────
-    # 3. TENTATIVE MISTRAL (Priorité 3)
-    # ─────────────────────────────────────────────────────────────
+    # 3. TENTATIVE MISTRAL
     if mistral_key:
         try:
             logger.info("Tentative de génération LLM via Mistral (modèle: %s)...", mistral_model)
@@ -265,6 +290,7 @@ def call_llm_with_fallback(
                 model=mistral_model,
                 temperature=temperature,
                 json_mode=json_mode,
+                max_tokens=MAX_OUTPUT_TOKENS,
             )
             return content, "mistral"
         except (LLMQuotaExceededError, LLMProviderError, Exception) as exc:
@@ -274,15 +300,14 @@ def call_llm_with_fallback(
     else:
         logger.debug("MISTRAL_API_KEY non renseignée.")
 
-    # Si aucun fournisseur n'était configuré du tout
     if not any([gemini_key, groq_key, mistral_key]):
         raise LLMProviderError(
             "Aucune clé d'API d'IA n'est configurée. Définissez au moins une clé parmi "
             "GEMINI_API_KEY, GROQ_API_KEY ou MISTRAL_API_KEY dans votre fichier .env."
         )
 
-    # Si tous les fournisseurs configurés ont échoué
     raise LLMProviderError(
         f"Tous les fournisseurs d'IA configurés ont échoué (quota ou indisponibilité) : "
         + " | ".join(errors_summary)
     )
+
